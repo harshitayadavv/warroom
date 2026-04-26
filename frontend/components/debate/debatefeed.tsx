@@ -30,12 +30,12 @@ export function DebateFeed({ turns, streaming, selectedTurnId, onSelectTurn }: D
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [turns.length, streaming?.speech])
+  }, [(turns ?? []).length, streaming?.speech])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0', height: '100%', overflowY: 'auto', padding: '16px' }}>
       {/* Empty state */}
-      {turns.length === 0 && !streaming?.isSpeaking && (
+      {(turns ?? []).length === 0 && !streaming?.isSpeaking && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: 'var(--text-muted)' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '32px', opacity: 0.3 }}>◈</div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase' }}>Awaiting debate initiation</div>
@@ -43,7 +43,7 @@ export function DebateFeed({ turns, streaming, selectedTurnId, onSelectTurn }: D
       )}
 
       {/* Completed turns */}
-      {turns.map((turn, i) => (
+      {(turns ?? []).map((turn, i) => (
         <TurnBubble
           key={turn.id}
           turn={turn}

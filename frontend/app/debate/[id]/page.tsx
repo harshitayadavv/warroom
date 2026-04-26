@@ -70,7 +70,7 @@ export default function DebateArenaPage({ params }: PageProps) {
     )
   }
 
-  const agentList = Object.values(activeDebate.agents)
+  const agentList = Object.values(activeDebate.agents ?? {})
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', gridTemplateRows: 'auto auto 1fr', background: 'var(--bg-void)', overflow: 'hidden' }}>
@@ -151,7 +151,7 @@ export default function DebateArenaPage({ params }: PageProps) {
         <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: 'var(--text-muted)', letterSpacing: '0.15em' }}>TRANSCRIPT</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: 'var(--text-muted)' }}>{activeDebate.transcript.length} TURNS</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: 'var(--text-muted)' }}>{(activeDebate?.transcript ?? []).length} TURNS</span>
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <DebateFeed
