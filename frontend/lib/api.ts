@@ -1,14 +1,8 @@
-// ═══════════════════════════════════════════════════════════
-// WARROOM — API Client
-// ═══════════════════════════════════════════════════════════
+// LOCATION: frontend/lib/api.ts
 
 import type {
-  Debate,
-  DebateConfig,
-  DebateSummary,
-  InterruptRequest,
-  ApiResponse,
-  PaginatedResponse,
+  Debate, DebateConfig, DebateSummary,
+  ApiResponse, PaginatedResponse,
 } from './types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
@@ -23,11 +17,15 @@ class ApiError extends Error {
 async function request<T>(
   path: string,
   options?: RequestInit,
+  token?: string,
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  })
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string>),
+  }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }))
     throw new ApiError(res.status, body.detail ?? 'Request failed')
@@ -35,48 +33,45 @@ async function request<T>(
   return res.json()
 }
 
-// ── Debate Endpoints ──────────────────────────────────────────
-
 export const api = {
   debates: {
-    create: (config: DebateConfig): Promise<ApiResponse<Debate>> =>
-      request('/debates', { method: 'POST', body: JSON.stringify({ config }) }),
-
-    get: (id: string): Promise<ApiResponse<Debate>> =>
-      request(`/debates/${id}`),
-
-    list: (page = 1, limit = 20): Promise<PaginatedResponse<DebateSummary>> =>
-      request(`/debates?page=${page}&limit=${limit}`),
-
-    delete: (id: string): Promise<void> =>
-      request(`/debates/${id}`, { method: 'DELETE' }),
-
-    pause: (id: string): Promise<ApiResponse<Debate>> =>
-      request(`/debates/${id}/pause`, { method: 'POST' }),
-
-    resume: (id: string): Promise<ApiResponse<Debate>> =>
-      request(`/debates/${id}/resume`, { method: 'POST' }),
-
-    interrupt: (payload: InterruptRequest): Promise<ApiResponse<Debate>> =>
-      request(`/debates/${payload.debateId}/interrupt`, {
+    create: (config: DebateConfig, token?: string): Promise<ApiResponse<Debate>> =>
+      request('/debates', {
         method: 'POST',
-        body: JSON.stringify(payload),
-      }),
+        body: JSON.stringify({ config }),
+      }, token),
 
-    forceConsensus: (id: string): Promise<ApiResponse<Debate>> =>
-      request(`/debates/${id}/force-consensus`, { method: 'POST' }),
+    get: (id: string, token?: string): Promise<ApiResponse<Debate>> =>
+      request(`/debates/${id}`, {}, token),
+
+    list: (page = 1, limit = 20, token?: string): Promise<PaginatedResponse<DebateSummary>> =>
+      request(`/debates?page=${page}&limit=${limit}`, {}, token),
+
+    delete: (id: string, token?: string): Promise<void> =>
+      request(`/debates/${id}`, { method: 'DELETE' }, token),
+
+    pause: (id: string, token?: string): Promise<ApiResponse<Debate>> =>
+      request(`/debates/${id}/pause`, { method: 'POST' }, token),
+
+    resume: (id: string, token?: string): Promise<ApiResponse<Debate>> =>
+      request(`/debates/${id}/resume`, { method: 'POST' }, token),
+
+    interrupt: (debateId: string, message: string, redirectType: string, token?: string): Promise<ApiResponse<Debate>> =>
+      request(`/debates/${debateId}/interrupt`, {
+        method: 'POST',
+        body: JSON.stringify({ debate_id: debateId, message, redirect_type: redirectType }),
+      }, token),
+
+    forceConsensus: (id: string, token?: string): Promise<ApiResponse<Debate>> =>
+      request(`/debates/${id}/force-consensus`, { method: 'POST' }, token),
+
+    checkpoints: (id: string, token?: string): Promise<ApiResponse<unknown[]>> =>
+      request(`/debates/${id}/checkpoints`, {}, token),
   },
 
-  agents: {
-    templates: (): Promise<ApiResponse<import('./types').AgentConfig[]>> =>
-      request('/agents/templates'),
-  },
-
-  health: (): Promise<{ status: string; version: string }> =>
+  health: (): Promise<{ status: string }> =>
     request('/health'),
 }
-
-// ── WebSocket Factory ─────────────────────────────────────────
 
 export function createDebateSocket(debateId: string): WebSocket {
   const wsBase = BASE_URL.replace(/^http/, 'ws')
