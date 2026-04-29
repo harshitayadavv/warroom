@@ -182,7 +182,7 @@ function TrendIndicator({ value }: { value: number }) {
 
 function Sparkline({ data }: { data: Array<Record<string, unknown>> }) {
   const roles: AgentRole[] = ['proponent', 'opponent', 'fact_checker']
-  const colors = { proponent: '#00ff88', opponent: '#ff3c3c', fact_checker: '#f5a623' }
+  const colors = { proponent: '#00ff88', opponent: '#ff3c3c', fact_checker: '#f5a623',moderator: '#9C27B0', }
   const W = 180, H = 48, pad = 4
   const rounds = data.map(d => d.round as number)
   const minR = Math.min(...rounds), maxR = Math.max(...rounds)
