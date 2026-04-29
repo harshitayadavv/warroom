@@ -1,14 +1,18 @@
 // LOCATION: frontend/next.config.mjs
-// NOTE: Renamed from next.config.ts → next.config.mjs
-// Delete next.config.ts from your project after adding this file
+// IMPORTANT: Rename/delete next.config.ts and use this file instead
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Disable StrictMode — in dev, StrictMode mounts components TWICE
+  // which closes the WebSocket before it opens, causing "ERROR" status
+  reactStrictMode: false,
+
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },
     ],
   },
+
   async rewrites() {
     return [
       {

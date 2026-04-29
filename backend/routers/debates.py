@@ -18,12 +18,10 @@ from routers.ws import manager, make_ws_callback
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/debates", tags=["debates"])
 
-# Running debate tasks registry
 _running_debates: dict[str, asyncio.Task] = {}
 
 
 def _get_user_id(authorization: str | None) -> str | None:
-    """Extract user_id from Bearer token via Supabase."""
     if not authorization or not authorization.startswith("Bearer "):
         return None
     token = authorization.removeprefix("Bearer ").strip()
@@ -35,16 +33,14 @@ def _get_user_id(authorization: str | None) -> str | None:
         return None
 
 
-# ── Create ─────────────────────────────────────────────────────
-
 @router.post("", response_model=ApiResponse)
 async def create_debate(
-    request:       CreateDebateRequest,
+    request:          CreateDebateRequest,
     background_tasks: BackgroundTasks,
-    authorization: Optional[str] = Header(None),
+    authorization:    Optional[str] = Header(None),
 ):
-    user_id    = _get_user_id(authorization) or request.user_id
-    debate_id  = str(uuid4())
+    user_id     = _get_user_id(authorization) or request.user_id
+    debate_id   = str(uuid4())
     is_personal = await detect_personal_topic(request.config.topic)
 
     agents = {
@@ -67,8 +63,11 @@ async def create_debate(
 async def run_debate_task(debate: Debate):
     debate_id = debate.id
     try:
-        graph       = build_debate_graph()
+        graph = build_debate_graph()
+
         ws_callback = make_ws_callback(debate_id)
+        from agents.graph import register_ws_callback
+        register_ws_callback(debate_id, ws_callback)
 
         initial_state = {
             "debate_id":       debate_id,
@@ -80,12 +79,20 @@ async def run_debate_task(debate: Debate):
             "consensus_score": 0.0,
             "should_end":      False,
             "interrupt_data":  None,
-            "approval_queue":  [],
-            "ws_callback":     ws_callback,
+            # ws_callback NOT in state — stored in registry to avoid msgpack crash
         }
 
         await supabase_client.update_debate_status(debate_id, DebateStatus.running.value)
-        config = {"configurable": {"thread_id": debate_id}}
+
+        # ── RECURSION LIMIT FIX ─────────────────────────────────────────────
+        # Default LangGraph limit is 25 steps.
+        # Each round = 7 nodes: round_start + 4 agents + consensus + (judge at end)
+        # 5 rounds × 7 = 35 steps minimum — exceeds default limit of 25.
+        # Set to 100 to safely support up to 5 rounds (35 steps) plus headroom.
+        config = {
+            "configurable":   {"thread_id": debate_id},
+            "recursion_limit": 100,
+        }
         await graph.ainvoke(initial_state, config=config)
 
     except asyncio.CancelledError:
@@ -97,10 +104,10 @@ async def run_debate_task(debate: Debate):
             {"summary": f"Error: {str(e)[:200]}"},
         )
     finally:
+        from agents.graph import unregister_ws_callback
+        unregister_ws_callback(debate_id)
         _running_debates.pop(debate_id, None)
 
-
-# ── Read ───────────────────────────────────────────────────────
 
 @router.get("/{debate_id}", response_model=ApiResponse)
 async def get_debate(debate_id: str):
@@ -139,8 +146,6 @@ async def list_debates(
     )
 
 
-# ── Delete ─────────────────────────────────────────────────────
-
 @router.delete("/{debate_id}")
 async def delete_debate(debate_id: str):
     task = _running_debates.get(debate_id)
@@ -150,8 +155,6 @@ async def delete_debate(debate_id: str):
     await redis_client.delete_debate_state(debate_id)
     return {"message": "Deleted"}
 
-
-# ── Control ────────────────────────────────────────────────────
 
 @router.post("/{debate_id}/pause", response_model=ApiResponse)
 async def pause_debate(debate_id: str):
@@ -194,8 +197,6 @@ async def force_consensus(debate_id: str):
     return ApiResponse(data={"message": "Consensus forced"})
 
 
-# ── Checkpoints ────────────────────────────────────────────────
-
 @router.get("/{debate_id}/checkpoints", response_model=ApiResponse)
 async def list_checkpoints(debate_id: str):
     cps = await supabase_client.list_checkpoints(debate_id)
@@ -216,11 +217,11 @@ async def restore_checkpoint(debate_id: str, checkpoint_id: str):
 
 @router.post("/{debate_id}/checkpoints/{checkpoint_id}/fork", response_model=ApiResponse)
 async def fork_checkpoint(
-    debate_id:     str,
-    checkpoint_id: str,
+    debate_id:        str,
+    checkpoint_id:    str,
     background_tasks: BackgroundTasks,
-    new_topic:     Optional[str] = None,
-    authorization: Optional[str] = Header(None),
+    new_topic:        Optional[str] = None,
+    authorization:    Optional[str] = Header(None),
 ):
     cp = await supabase_client.get_checkpoint(checkpoint_id)
     if not cp:
@@ -232,7 +233,7 @@ async def fork_checkpoint(
     if new_topic:
         old_config["topic"] = new_topic
 
-    from models.schemas import DebateConfig, AgentConfig
+    from models.schemas import DebateConfig
     new_id = str(uuid4())
     config = DebateConfig(**old_config)
     debate = Debate(id=new_id, user_id=user_id, config=config,
