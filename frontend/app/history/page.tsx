@@ -119,8 +119,8 @@ export default function HistoryPage() {
 
 function DebateCard({ debate }: { debate: DebateSummary }) {
   const meta = STATUS_META[debate.status] ?? { color: 'var(--text-muted)', label: debate.status, dot: false }
-  const pct  = Math.round(debate.consensus_score * 100)
-  const isPersonal = debate.personal_context_detected
+  const pct = Math.round((debate.consensusScore ?? (debate as any).consensus_score ?? 0) * 100)
+  const isPersonal = (debate as any).personal_context_detected
 
   return (
     <Link href={`/debate/${debate.id}`} style={{ textDecoration: 'none' }}>
