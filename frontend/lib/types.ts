@@ -236,7 +236,7 @@ export interface DebateSummary {
   id: string
   topic: string
   status: DebateStatus
-  createdAt: string
+  created_at: string;
   duration?: number
   rounds: number
   consensusScore: number
