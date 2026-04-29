@@ -1,5 +1,5 @@
-# LOCATION: backend/requirements.txt
-# Install with: pip install -r requirements.txt
+
+--prefer-binary
 
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
@@ -20,20 +20,19 @@ groq==0.11.0
 # Supabase
 supabase==2.9.1
 
-# Redis (ephemeral state caching)
+# Redis
 redis==5.2.0
 aioredis==2.0.1
 
-# Web search tools
+# Web search
 tavily-python==0.5.0
 
-# Vector embeddings for consensus engine
-sentence-transformers==3.3.1
-numpy==2.1.3
-scikit-learn==1.5.2
 
-# Python REPL sandboxing
-RestrictedPython==7.4
+numpy==1.26.4
+scikit-learn==1.6.1
+
+# Python REPL sandboxing — 7.4 does not exist, 8.1 is latest
+RestrictedPython==8.1
 
 # Utilities
 httpx==0.27.2
