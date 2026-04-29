@@ -117,7 +117,7 @@ export function TurnDetail({ turn, onClose }: TurnDetailProps) {
                       </span>
                     )}
                   </div>
-                  {tc.output && (
+                  {tc.output !== undefined && tc.output !== null && (
                     <pre style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: '10px',
@@ -130,7 +130,7 @@ export function TurnDetail({ turn, onClose }: TurnDetailProps) {
                       paddingTop: '6px',
                       marginTop: '4px',
                     }}>
-                      {typeof tc.output === 'string' ? tc.output : JSON.stringify(tc.output, null, 2)}
+                      {typeof tc.output === 'string' ? tc.output : JSON.stringify(tc.output ?? '', null, 2)}
                     </pre>
                   )}
                 </div>
