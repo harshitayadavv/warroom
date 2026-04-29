@@ -74,7 +74,9 @@ export function JudgeVerdict({ debate, verdict, onClose, onNewDebate, onFork }: 
   }, [typedSummary, verdict.summary.length, verdict.recommendation])
 
   const isDraw   = verdict.winner === 'draw'
-  const winMeta  = isDraw ? null : WINNER_META[verdict.winner]
+  const winMeta = !isDraw
+  ? WINNER_META[verdict.winner as AgentRole]
+  : null
   const duration = formatDuration(verdict.debateDurationSec)
 
   return (
