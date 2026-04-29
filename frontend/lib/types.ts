@@ -58,6 +58,7 @@ export interface DebateConfig {
   enableHumanInterrupt: boolean
   consensusThreshold: number   // 0-1, e.g. 0.85
   debateMode: 'adversarial' | 'collaborative' | 'socratic'
+  context?: string
 }
 
 export interface Debate {
