@@ -169,7 +169,7 @@ function DebateCard({ debate }: { debate: DebateSummary }) {
           {/* Tags */}
           {(debate.tags?.length ?? 0) > 0 && (
             <div style={{ display: 'flex', gap: '5px', marginTop: '8px', flexWrap: 'wrap' }}>
-              {debate.tags.map(t => (
+              {(debate.tags ?? []).map(t => (
                 <span key={t} style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-dim)', color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
                   {t}
                 </span>
