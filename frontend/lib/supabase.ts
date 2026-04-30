@@ -1,21 +1,52 @@
 // LOCATION: frontend/lib/supabase.ts
-// Session is stored in localStorage automatically by Supabase client
-// This means it persists across page refreshes WITHOUT any extra code
-// The key is passing persistSession: true (which is the default)
 
 import { createClient } from '@supabase/supabase-js'
 
-const SUPABASE_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-if (!SUPABASE_URL)      throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set in frontend/.env.local')
-if (!SUPABASE_ANON_KEY) throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not set in frontend/.env.local')
+export const supabase = createClient(supabaseUrl, supabaseAnon)
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession:    true,        // ✅ saves session to localStorage
-    autoRefreshToken:  true,        // ✅ auto-refreshes before expiry
-    detectSessionInUrl: true,       // ✅ handles magic link / OAuth redirects
-    storageKey: 'warroom-auth',     // custom key so it doesn't clash
-  },
-})
+// ── Database table types ──────────────────────────────────────
+// Used by timeline/debatetimeline.tsx, timeline/forkmodal.tsx,
+// and hooks/usecheckpoints.ts
+
+export type Tables = {
+  debates: {
+    id: string
+    user_id: string
+    topic: string
+    status: string
+    config: Record<string, unknown>
+    transcript: unknown[]
+    consensus_score: number
+    current_round: number
+    winner_role: string | null
+    summary: string | null
+    tags: string[]
+    personal_context_detected: boolean
+    created_at: string
+    updated_at: string
+  }
+  checkpoints: {
+    id: string
+    debate_id: string
+    round: number
+    label: string
+    state_snapshot: Record<string, unknown>
+    created_at: string
+  }
+  turns: {
+    id: string
+    debate_id: string
+    round: number
+    agent_role: string
+    agent_name: string
+    content: string
+    score: Record<string, unknown>
+    tool_calls: unknown[]
+    embedding: number[] | null
+    is_interrupt: boolean
+    created_at: string
+  }
+}

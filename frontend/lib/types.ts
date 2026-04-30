@@ -1,3 +1,6 @@
+// LOCATION: frontend/lib/types.ts
+// Added: StreamingState (used by debateStore.ts)
+
 // ═══════════════════════════════════════════════════════════
 // WARROOM — Core Type Definitions
 // ═══════════════════════════════════════════════════════════
@@ -30,11 +33,22 @@ export interface AgentState {
 }
 
 export interface AgentScore {
-  logicScore: number       // 0-100
-  evidenceScore: number    // 0-100
-  sentimentScore: number   // -1 to 1
+  logicScore: number
+  evidenceScore: number
+  sentimentScore: number
   fallaciesDetected: Fallacy[]
-  totalScore: number       // weighted aggregate
+  totalScore: number
+}
+
+// ── Streaming State ──────────────────────────────────────────
+// Used by debateStore.ts and useDebate.ts
+
+export interface StreamingState {
+  agentRole?: AgentRole
+  thought:    string
+  speech:     string
+  isThinking: boolean
+  isSpeaking: boolean
 }
 
 // ── Debate Types ─────────────────────────────────────────────
@@ -56,7 +70,7 @@ export interface DebateConfig {
   enableWebSearch: boolean
   enablePythonRepl: boolean
   enableHumanInterrupt: boolean
-  consensusThreshold: number   // 0-1, e.g. 0.85
+  consensusThreshold: number
   debateMode: 'adversarial' | 'collaborative' | 'socratic'
   context?: string
 }
@@ -70,8 +84,8 @@ export interface Debate {
   currentRound: number
   agents: Record<AgentRole, AgentState>
   transcript: DebateTurn[]
-  consensusScore: number     // 0-1
-  consensusVector?: number[] // embedding
+  consensusScore: number
+  consensusVector?: number[]
   winnerRole?: AgentRole
   summary?: string
   tags?: string[]
@@ -90,6 +104,17 @@ export interface DebateTurn {
   embedding?: number[]
   isInterrupt?: boolean
   interruptBy?: 'user' | 'fact_checker'
+}
+
+// ── Checkpoint Types ──────────────────────────────────────────
+
+export interface Checkpoint {
+  id: string
+  debateId: string
+  round: number
+  label: string
+  createdAt: string
+  stateSnapshot?: Record<string, unknown>
 }
 
 // ── Streaming / WebSocket Types ───────────────────────────────
@@ -236,12 +261,13 @@ export interface DebateSummary {
   id: string
   topic: string
   status: DebateStatus
-  created_at: string;
+  createdAt: string
   duration?: number
   rounds: number
   consensusScore: number
   winnerRole?: AgentRole
   tags?: string[]
+  personal_context_detected?: boolean
 }
 
 // ── UI State Types ─────────────────────────────────────────────

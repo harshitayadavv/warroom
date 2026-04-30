@@ -157,7 +157,7 @@ function DebateCard({ debate }: { debate: DebateSummary }) {
             </span>
             {/* Time */}
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: 'var(--text-muted)' }}>
-              {formatRelTime(debate.created_at as unknown as string)}
+              {formatRelTime(debate.createdAt as unknown as string)}
             </span>
           </div>
 

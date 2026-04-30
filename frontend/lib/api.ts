@@ -67,6 +67,13 @@ export const api = {
 
     checkpoints: (id: string, token?: string): Promise<ApiResponse<unknown[]>> =>
       request(`/debates/${id}/checkpoints`, {}, token),
+
+    // Used by usecheckpoints.ts
+    fork: (debateId: string, checkpointId: string, newTopic?: string, token?: string): Promise<ApiResponse<{ newDebateId: string }>> =>
+      request(`/debates/${debateId}/checkpoints/${checkpointId}/fork`, {
+        method: 'POST',
+        body: JSON.stringify({ new_topic: newTopic }),
+      }, token),
   },
 
   health: (): Promise<{ status: string }> =>

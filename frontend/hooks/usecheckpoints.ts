@@ -1,90 +1,42 @@
-// LOCATION: frontend/hooks/useCheckpoints.ts
-// Manages time-travel: fetching, forking, and restoring debate checkpoints
-
 'use client'
-import { useState, useCallback, useEffect } from 'react'
+// LOCATION: frontend/hooks/usecheckpoints.ts
+
+import { useState, useCallback } from 'react'
 import { api } from '@/lib/api'
-import { useDebateStore } from '@/store/debateStore'
-import type { Tables } from '@/lib/supabase'
+import type { Checkpoint } from '@/lib/types'
 
-type Checkpoint = Tables['checkpoints']
-
-export function useCheckpoints(debateId: string | null) {
+export function useCheckpoints(debateId: string, token?: string | null) {
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([])
-  const [loading, setLoading]         = useState(false)
-  const [forking, setForking]         = useState(false)
-  const [error, setError]             = useState<string | null>(null)
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState<string | null>(null)
 
-  const addNotification = useDebateStore((s) => s.addNotification)
-  const closeForkModal  = useDebateStore((s) => s.closeForkModal)
-
-  // Fetch all checkpoints for this debate
   const fetchCheckpoints = useCallback(async () => {
     if (!debateId) return
     setLoading(true)
+    setError(null)
     try {
-      const res = await api.checkpoints.list(debateId)
-      setCheckpoints(res.data ?? [])
-    } catch (e) {
-      setError((e as Error).message)
+      const res = await api.debates.checkpoints(debateId, token ?? undefined)
+      const data = (res?.data ?? []) as Checkpoint[]
+      setCheckpoints(data)
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to load checkpoints')
     } finally {
       setLoading(false)
     }
-  }, [debateId])
+  }, [debateId, token])
 
-  useEffect(() => {
-    fetchCheckpoints()
-  }, [fetchCheckpoints])
+  const forkCheckpoint = useCallback(async (
+    checkpointId: string,
+    newTopic?: string,
+  ): Promise<string | null> => {
+    try {
+      const res = await api.debates.fork(debateId, checkpointId, newTopic, token ?? undefined)
+      return res?.data?.newDebateId ?? null
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to fork checkpoint')
+      return null
+    }
+  }, [debateId, token])
 
-  // Fork the debate from a specific checkpoint/round
-  const forkFromCheckpoint = useCallback(
-    async (checkpointId: string, newTopic?: string) => {
-      if (!debateId) return null
-      setForking(true)
-      setError(null)
-      try {
-        const res = await api.debates.fork(debateId, checkpointId, newTopic)
-        addNotification({
-          type: 'success',
-          title: 'Fork created',
-          message: `New debate branched from Round ${res.data.currentRound}`,
-        })
-        closeForkModal()
-        return res.data
-      } catch (e) {
-        const msg = (e as Error).message
-        setError(msg)
-        addNotification({ type: 'error', title: 'Fork failed', message: msg })
-        return null
-      } finally {
-        setForking(false)
-      }
-    },
-    [debateId, addNotification, closeForkModal]
-  )
-
-  // Label a checkpoint for easy reference
-  const labelCheckpoint = useCallback(
-    async (checkpointId: string, label: string) => {
-      try {
-        await api.checkpoints.label(checkpointId, label)
-        setCheckpoints((prev) =>
-          prev.map((c) => (c.id === checkpointId ? { ...c, label } : c))
-        )
-      } catch (e) {
-        setError((e as Error).message)
-      }
-    },
-    []
-  )
-
-  return {
-    checkpoints,
-    loading,
-    forking,
-    error,
-    fetchCheckpoints,
-    forkFromCheckpoint,
-    labelCheckpoint,
-  }
+  return { checkpoints, loading, error, fetchCheckpoints, forkCheckpoint }
 }
