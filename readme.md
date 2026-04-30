@@ -1,48 +1,98 @@
-# ⚔ WARROOM — Multi-Agent Strategic Debate Arena
+<div align="center">
 
-> Tell it anything. Three AI agents debate it. A judge gives you a verdict.
+# ⚔ WARROOM
 
-WarRoom is a full-stack AI application where multiple specialised agents argue for and against any topic — whether it's a world policy question or a personal life decision like *"Should I buy a dog?"*
+### Multi-Agent AI Debate Arena
+
+*Tell it anything. Four AI agents debate it. A judge gives you a verdict.*
+
+[![Live Demo](https://img.shields.io/badge/LIVE%20DEMO-warroom--frontend.vercel.app-f5a623?style=for-the-badge&logo=vercel&logoColor=black)](https://warroom-frontend.vercel.app)
+[![Backend](https://img.shields.io/badge/API-warroom--1.onrender.com-00ff88?style=for-the-badge&logo=render&logoColor=black)](https://warroom-1.onrender.com/health)
+[![GitHub](https://img.shields.io/badge/GitHub-harshitayadavv%2Fwarroom-white?style=for-the-badge&logo=github&logoColor=black)](https://github.com/harshitayadavv/warroom)
 
 ![WarRoom Banner](https://placehold.co/1200x400/080d14/f5a623?text=WARROOM+%E2%80%94+Multi-Agent+Debate+Arena&font=monospace)
+
+</div>
+
+---
+
+## 🔗 Live Links
+
+| Service | URL | Status |
+|---|---|---|
+| 🌐 **Frontend** | [warroom-frontend.vercel.app](https://warroom-frontend.vercel.app) | ![Vercel](https://img.shields.io/badge/Vercel-deployed-00ff88?style=flat-square) |
+| ⚙️ **Backend API** | [warroom-1.onrender.com](https://warroom-1.onrender.com) | ![Render](https://img.shields.io/badge/Render-deployed-00ff88?style=flat-square) |
+| 📡 **Health Check** | [/health](https://warroom-1.onrender.com/health) | ![API](https://img.shields.io/badge/API-online-00ff88?style=flat-square) |
+
+> **Note:** Backend runs on Render free tier — first load may take 30–50s to wake up (cold start).
 
 ---
 
 ## What it does
 
-You type any topic. Four AI agents take over:
+You type any topic. Four AI agents take over and debate it in real time:
 
-| Agent | Role |
-|---|---|
-| **AXIOM** (Proponent) | Argues as strongly as possible *for* your topic |
-| **REFUTE** (Opponent) | Finds every weakness and argues *against* |
-| **VERITAS** (Fact-Checker) | Neutral auditor — searches the web, detects logical fallacies, penalises fake stats |
-| **ARBITER** (Judge) | Scores every turn, tracks consensus, delivers a final verdict with a recommendation |
+| Agent | Name | Role |
+|---|---|---|
+| ▲ **Proponent** | AXIOM | Argues as strongly as possible *for* your topic |
+| ▼ **Opponent** | REFUTE | Finds every weakness and argues *against* |
+| ◆ **Fact-Checker** | VERITAS | Neutral auditor — detects fallacies, verifies claims |
+| ◉ **Judge** | ARBITER | Scores every turn, delivers a final verdict |
 
-Works for **any topic**:
-- 🐕 "Should I buy a dog?"
-- 💼 "Should I quit my job and freelance?"
-- 🏠 "Should I rent or buy a house right now?"
-- ⚡ "Nuclear energy is essential for net-zero"
-- 🤖 "AI development should be paused immediately"
+### Works for any topic
+
+```
+🐕  "Should I buy a dog?"
+💼  "Should I quit my job and freelance?"
+🏠  "Should I rent or buy a house right now?"
+⚡  "Nuclear energy is essential for net-zero"
+🤖  "AI development should be paused immediately"
+🌍  "Social media does more harm than good"
+```
+
+---
+
+## ✨ Key Features
+
+- **⚡ Real-time streaming** — Every agent's response streams token-by-token via WebSocket. Watch agents think and speak live.
+- **⏸ Pause & interrupt** — Pause any debate mid-turn. Inject evidence, challenge a claim, or redirect the conversation.
+- **🔍 Live web search** — Fact-Checker uses Tavily to search the web in real time, verifying claims as they're made.
+- **⚠ Fallacy detection** — Every turn scanned for 10+ fallacy types (Ad Hominem, Straw Man, False Dichotomy, etc.).
+- **📊 Live metrics** — Animated score bars, head-to-head battle view, and consensus arc update after every turn.
+- **🧬 Consensus engine** — Vector embeddings measure stance convergence. Debate ends when agents agree enough.
+- **⏱ Time-travel & forking** — Every round checkpointed. Jump back and fork a new debate branch from any point.
+- **🏆 Judge verdict** — Full verdict with winner, key arguments, fallacy summary, and concrete recommendation.
+- **👤 Personal topic support** — Detects personal decisions and adjusts agents to discuss practical, real-world impact.
 
 ---
 
 ## Tech Stack
 
+<table>
+<tr>
+<td valign="top" width="50%">
+
 **Frontend**
 - Next.js 14 (App Router) + TypeScript
-- Pure CSS custom properties — no Tailwind
-- Real-time WebSocket streaming
-- Supabase Auth (signup / login)
+- Pure CSS custom properties
+- WebSocket real-time streaming
+- Supabase Auth
+- Deployed on **Vercel**
+
+</td>
+<td valign="top" width="50%">
 
 **Backend**
 - FastAPI + Python
-- LangGraph state machine (the debate engine)
-- Groq API (ultra-fast LLM inference — Llama 3.3 70B)
-- Supabase (PostgreSQL database + Auth)
-- Redis (pause/interrupt/approval state)
-- Tavily (live web search for agents)
+- LangGraph state machine
+- Groq API (Llama 3.3 70B)
+- Supabase (PostgreSQL + Auth)
+- Redis (pause/interrupt state)
+- Deployed on **Render**
+
+</td>
+</tr>
+</table>
 
 ---
 
@@ -53,58 +103,43 @@ WarRoom/
 ├── frontend/                  # Next.js app
 │   ├── app/
 │   │   ├── page.tsx           # Landing page
-│   │   ├── NavBar.tsx         # Client nav with auth state
-│   │   ├── auth/
-│   │   │   ├── login/         # Login page
-│   │   │   └── signup/        # Signup page
+│   │   ├── auth/              # Login + Signup
 │   │   ├── debate/
 │   │   │   ├── new/           # Create debate form
 │   │   │   └── [id]/          # Live debate arena
-│   │   └── history/           # Your past debates
+│   │   └── history/           # Past debates
 │   ├── components/
-│   │   ├── agents/            # AgentCard, AgentConfig
-│   │   ├── approval/          # ApprovalGate (HITL tool approval)
-│   │   ├── dashboard/         # ConsensusGauge, ScoringPanel, FallacyAlert, LiveMetrics
-│   │   ├── debate/            # DebateFeed, InterruptModal, TurnDetail, JudgeVerdict, DebateControls
-│   │   ├── graph/             # GraphCanvas, AgentNode, ToolEdge (React Flow)
-│   │   ├── timeline/          # DebateTimeline, ForkModal (time-travel)
+│   │   ├── agents/            # AgentCard
+│   │   ├── dashboard/         # LiveMetricsPanel, ConsensusGauge
+│   │   ├── debate/            # DebateFeed, InterruptModal, DebateControls
+│   │   ├── graph/             # GraphCanvas (React Flow)
+│   │   ├── timeline/          # DebateTimeline, ForkModal
 │   │   └── ui/                # Button, Badge, Tooltip
 │   ├── hooks/
-│   │   ├── useAuth.ts         # Supabase session management
+│   │   ├── useAuth.ts         # Supabase session
 │   │   ├── useDebate.ts       # Debate state + WS events
-│   │   ├── useWebSocket.ts    # WS connection with auto-reconnect
 │   │   └── useCheckpoints.ts  # Time-travel / fork
-│   ├── lib/
-│   │   ├── api.ts             # FastAPI client
-│   │   ├── groq.ts            # Groq SDK wrapper
-│   │   ├── supabase.ts        # Supabase client
-│   │   └── types.ts           # All TypeScript interfaces
-│   └── store/
-│       └── debateStore.ts     # Zustand global state
+│   └── lib/
+│       ├── api.ts             # FastAPI client
+│       ├── supabase.ts        # Supabase client
+│       ├── types.ts           # TypeScript interfaces
+│       └── constants.ts       # Shared constants
 │
 └── backend/                   # FastAPI app
-    ├── main.py                # Entry point
-    ├── models/
-    │   └── schemas.py         # All Pydantic models
+    ├── main.py                # Entry point + CORS
+    ├── models/schemas.py      # Pydantic models
     ├── routers/
     │   ├── debates.py         # REST endpoints
     │   └── ws.py              # WebSocket manager
     ├── agents/
     │   ├── graph.py           # LangGraph state machine
-    │   ├── proponent.py       # Proponent agent
-    │   ├── opponent.py        # Opponent agent
-    │   ├── fact_checker.py    # Fact-checker agent
-    │   ├── moderator.py       # Moderator + Judge verdict
-    │   ├── consensus.py       # Vector embedding consensus engine
-    │   ├── prompts.py         # All system prompts
-    │   └── scoring.py         # Per-turn logic/evidence/fallacy scoring
-    ├── services/
-    │   ├── groq_client.py     # Groq API (lazy init)
-    │   ├── supabase_client.py # DB operations
-    │   └── redis_client.py    # Ephemeral state cache
-    └── tools/
-        ├── web_search.py      # Tavily live search
-        └── python_repl.py     # Sandboxed Python executor
+    │   ├── consensus.py       # Vector embedding engine
+    │   ├── prompts.py         # System prompts
+    │   └── scoring.py         # Per-turn scoring
+    └── services/
+        ├── groq_client.py     # Groq API
+        ├── supabase_client.py # DB operations
+        └── redis_client.py    # Ephemeral state
 ```
 
 ---
@@ -112,32 +147,29 @@ WarRoom/
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js 18+
 - Python 3.11+
-- A [Supabase](https://supabase.com) project (free)
-- A [Groq](https://console.groq.com) API key (free)
-- A [Tavily](https://tavily.com) API key (free tier)
+- [Supabase](https://supabase.com) project (free)
+- [Groq](https://console.groq.com) API key (free)
+- [Tavily](https://tavily.com) API key (optional — enables web search)
 
 ---
 
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/warroom.git
+git clone https://github.com/harshitayadavv/warroom.git
 cd warroom
 ```
 
----
-
-### 2. Set up the database
+### 2. Database setup
 
 1. Go to your Supabase project → **SQL Editor** → **New query**
 2. Paste the contents of `backend/supabase_schema.sql`
 3. Click **Run**
 
----
-
-### 3. Frontend setup
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -145,127 +177,73 @@ npm install
 ```
 
 Create `frontend/.env.local`:
-
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-> Get these from Supabase → Settings → API. Use the **anon/public** key, NOT the service_role key.
-
 ```bash
-npm run dev
-# Runs on http://localhost:3000
+npm run dev   # http://localhost:3000
 ```
 
----
-
-### 4. Backend setup
+### 4. Backend
 
 ```bash
 cd backend
 python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# Mac/Linux
-source venv/bin/activate
-
+source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
 Create `backend/.env`:
-
 ```env
-GROQ_API_KEY=gsk_your_key_here
+GROQ_API_KEY=gsk_your_key
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_KEY=your-service-role-key-here
+SUPABASE_SERVICE_KEY=your-service-role-key
 REDIS_URL=redis://localhost:6379
-TAVILY_API_KEY=tvly-your-key-here
-CORS_ORIGINS=http://localhost:3000
+TAVILY_API_KEY=tvly-your-key
+CORS_ORIGINS=http://localhost:3000,https://warroom-frontend.vercel.app
 DEBUG=true
 ```
 
-> For `SUPABASE_SERVICE_KEY` use the **service_role** key from Supabase → Settings → API.
-
 ```bash
-uvicorn main:app --reload --port 8000
-# Runs on http://localhost:8000
+uvicorn main:app --reload --port 8000   # http://localhost:8000
 ```
 
 ---
 
-### 5. Verify everything works
+## Deployment
 
-- Frontend: http://localhost:3000 — you should see the WarRoom landing page
-- Backend: http://localhost:8000/health — should return `{"status": "online"}`
-- Create an account, start a debate, watch it run
+### Frontend → Vercel
 
----
+| Variable | Value |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | `https://warroom-1.onrender.com` |
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your anon key |
 
-## Key Features
+### Backend → Render
 
-### Real-time streaming
-Every agent's response streams token-by-token via WebSocket. You see the agents thinking and speaking live.
+| Variable | Value |
+|---|---|
+| `GROQ_API_KEY` | Your Groq key |
+| `SUPABASE_URL` | Your Supabase URL |
+| `SUPABASE_SERVICE_KEY` | Your service role key |
+| `CORS_ORIGINS` | `http://localhost:3000,https://warroom-frontend.vercel.app` |
+| `TAVILY_API_KEY` | Your Tavily key (optional) |
 
-### Human-in-the-loop
-Pause any debate mid-turn. Inject new evidence, challenge a specific claim, or redirect the conversation entirely.
-
-### Fact-checking with live web search
-The Fact-Checker agent uses Tavily to search the web in real time, verifying or debunking claims as they're made.
-
-### Logical fallacy detection
-Every turn is automatically scanned for 10+ fallacy types (Ad Hominem, Straw Man, False Dichotomy, etc.). Fallacies trigger toast alerts and penalise the offending agent's score.
-
-### Consensus engine
-Vector embeddings measure how much the Proponent and Opponent's stances have converged. The debate ends when they reach the configured similarity threshold.
-
-### Time-travel & forking
-Every round is checkpointed. Jump back to any round and fork a new debate branch from that moment — optionally with a new topic.
-
-### Judge verdict
-At the end of every debate, the Judge delivers a full verdict: winner, key arguments, fallacy summary, and a concrete recommendation — especially useful for personal life decisions.
-
-### Personal topic support
-WarRoom detects personal decision topics and adjusts agent behaviour accordingly. Instead of abstract logic, agents discuss practical consequences, emotions, lifestyle, and real-world impact.
+Start command: `uvicorn main:app --host 0.0.0.0 --port 8000`
 
 ---
 
-## Environment Variables Reference
+## Groq Models
 
-| Variable | Where | What |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | frontend/.env.local | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | frontend/.env.local | Supabase anon/public key |
-| `NEXT_PUBLIC_API_URL` | frontend/.env.local | Backend URL (default: http://localhost:8000) |
-| `GROQ_API_KEY` | backend/.env | Groq API key |
-| `SUPABASE_URL` | backend/.env | Supabase project URL |
-| `SUPABASE_SERVICE_KEY` | backend/.env | Supabase service_role key |
-| `REDIS_URL` | backend/.env | Redis connection (optional — falls back to memory) |
-| `TAVILY_API_KEY` | backend/.env | Tavily search (optional — web search disabled without it) |
-
----
-
-## Groq Models Used
-
-| Agent | Model | Why |
-|---|---|---|
-| Proponent | `llama-3.3-70b-versatile` | Best reasoning for arguments |
-| Opponent | `llama-3.3-70b-versatile` | Best reasoning for counter-arguments |
-| Fact-Checker | `llama-3.1-8b-instant` | Needs speed for real-time auditing |
-| Judge/Moderator | `llama-3.3-70b-versatile` | Best for nuanced scoring and verdicts |
-
----
-
-## Contributing
-
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit: `git commit -m 'Add your feature'`
-4. Push: `git push origin feature/your-feature`
-5. Open a Pull Request
+| Agent | Model |
+|---|---|
+| Proponent, Opponent, Judge | `llama-3.3-70b-versatile` |
+| Fact-Checker | `llama-3.3-70b-versatile` |
+| Scoring | `gemma2-9b-it` (separate quota) |
 
 ---
 
@@ -275,4 +253,10 @@ MIT — do whatever you want with it.
 
 ---
 
+<div align="center">
+
 Built with ⚔ by [Harshita Yadav](https://github.com/harshitayadavv)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/harshitayadavv/warroom)
+
+</div>
