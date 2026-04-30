@@ -12,7 +12,6 @@ export const ROLE_COLORS: Record<AgentRole, { primary: string; glow: string; dim
 }
 
 // ── Graph node ID constants ───────────────────────────────────────────────────
-// graphcanvas.tsx accesses these as GRAPH_NODES.START, GRAPH_NODES.PROPONENT etc.
 
 export const GRAPH_NODES = {
   START:        'start',
@@ -21,6 +20,10 @@ export const GRAPH_NODES = {
   OPPONENT:     'opponent',
   FACT_CHECKER: 'fact_checker',
   MODERATOR:    'moderator',
+  TOOL_ROUTER:  'tool_router',
+  WEB_SEARCH:   'web_search',
+  PYTHON_REPL:  'python_repl',
+  HUMAN:        'human',
   CONSENSUS:    'consensus',
   JUDGE:        'judge',
   END:          'end',
