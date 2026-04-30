@@ -3,7 +3,6 @@
 import type { AgentRole } from './types'
 
 // ── Role colors ───────────────────────────────────────────────────────────────
-// Defined as objects so graphcanvas.tsx can access ROLE_COLORS[role].primary
 
 export const ROLE_COLORS: Record<AgentRole, { primary: string; glow: string; dim: string }> = {
   proponent:    { primary: '#00ff88', glow: '#00ff8844', dim: '#00ff8811' },
@@ -12,19 +11,20 @@ export const ROLE_COLORS: Record<AgentRole, { primary: string; glow: string; dim
   moderator:    { primary: '#1e90ff', glow: '#1e90ff44', dim: '#1e90ff11' },
 }
 
-// ── Graph node definitions ────────────────────────────────────────────────────
+// ── Graph node ID constants ───────────────────────────────────────────────────
+// graphcanvas.tsx accesses these as GRAPH_NODES.START, GRAPH_NODES.PROPONENT etc.
 
-export const GRAPH_NODES = [
-  { id: 'start',        type: 'start',     label: 'START',        position: { x: 350, y: 20  } },
-  { id: 'round_start',  type: 'consensus', label: 'Round Start',  position: { x: 350, y: 100 } },
-  { id: 'proponent',    type: 'agent',     label: 'Proponent',    position: { x: 100, y: 220 }, agentRole: 'proponent'    as AgentRole },
-  { id: 'opponent',     type: 'agent',     label: 'Opponent',     position: { x: 350, y: 220 }, agentRole: 'opponent'     as AgentRole },
-  { id: 'fact_checker', type: 'agent',     label: 'Fact-Checker', position: { x: 600, y: 220 }, agentRole: 'fact_checker' as AgentRole },
-  { id: 'moderator',    type: 'agent',     label: 'Moderator',    position: { x: 350, y: 340 }, agentRole: 'moderator'    as AgentRole },
-  { id: 'consensus',    type: 'consensus', label: 'Consensus',    position: { x: 350, y: 460 } },
-  { id: 'judge',        type: 'consensus', label: 'Judge',        position: { x: 350, y: 560 } },
-  { id: 'end',          type: 'end',       label: 'END',          position: { x: 350, y: 660 } },
-]
+export const GRAPH_NODES = {
+  START:        'start',
+  ROUND_START:  'round_start',
+  PROPONENT:    'proponent',
+  OPPONENT:     'opponent',
+  FACT_CHECKER: 'fact_checker',
+  MODERATOR:    'moderator',
+  CONSENSUS:    'consensus',
+  JUDGE:        'judge',
+  END:          'end',
+} as const
 
 // ── Debate mode options ───────────────────────────────────────────────────────
 
