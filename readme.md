@@ -96,6 +96,39 @@ You type any topic. Four AI agents take over and debate it in real time:
 
 ---
 
+## Architecture
+
+### LangGraph State Machine
+```mermaid
+flowchart TD
+    START --> round_start
+    round_start --> proponent
+    round_start --> opponent
+    round_start --> fact_checker
+    proponent --> moderator
+    opponent --> moderator
+    fact_checker --> moderator
+    moderator --> consensus
+    consensus -->|continue| round_start
+    consensus -->|end| judge
+    judge --> END
+```
+
+### How it works
+```mermaid
+flowchart TD
+    A[User enters topic] --> B[Next.js frontend\nPOST /debates]
+    B --> C[FastAPI backend\nstarts LangGraph task]
+    C --> D[4 agents debate in sequence\nPro → Opp → Fact → Mod]
+    D --> E[Groq streams tokens\nLlama 3.3 70B]
+    D --> F[Scoring runs parallel\nlogic + fallacies]
+    E --> G[WebSocket pushes events live]
+    F --> G
+    G --> H[User sees live debate + verdict]
+```
+`` `
+---
+
 ## Project Structure
 
 ```
