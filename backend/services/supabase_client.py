@@ -40,8 +40,30 @@ async def save_debate(debate: Debate) -> dict:
 
 async def get_debate(debate_id: str) -> dict | None:
     try:
-        result = get_supabase().table("debates").select("*").eq("id", debate_id).single().execute()
-        return result.data
+        sb = get_supabase()
+
+        # Fetch debate row
+        result = sb.table("debates").select("*").eq("id", debate_id).single().execute()
+        if not result.data:
+            return None
+
+        debate = result.data
+
+        # ── FIX: also fetch turns and attach as transcript ─────────────────
+        # Previously get_debate only returned the debates table row which has
+        # no transcript field — turns are stored separately in debate_turns.
+        # Frontend expects debate.transcript[] to render the chat feed.
+        turns_result = (
+            sb.table("debate_turns")
+            .select("*")
+            .eq("debate_id", debate_id)
+            .order("created_at")
+            .execute()
+        )
+        debate["transcript"] = turns_result.data or []
+
+        return debate
+
     except Exception as e:
         logger.error(f"[DB] get_debate failed: {e}")
         return None
