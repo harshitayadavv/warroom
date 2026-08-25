@@ -12,7 +12,7 @@ from services.groq_client import chat
 logger = logging.getLogger(__name__)
 
 # Separate model = separate quota = no competition with main agents
-SCORING_MODEL = "gemma2-9b-it"
+SCORING_MODEL = "openai/gpt-oss-120b"
 
 
 async def score_turn(content: str, role: AgentRole, round_num: int) -> AgentScore:

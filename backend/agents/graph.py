@@ -1,5 +1,3 @@
-# LOCATION: backend/agents/graph.py
-
 from __future__ import annotations
 import json, logging, asyncio
 from typing import TypedDict, Any
@@ -17,7 +15,7 @@ from agents.consensus import (
     compute_consensus_score, extract_stance,
     detect_personal_topic, is_consensus_reached,
 )
-
+import time
 logger = logging.getLogger(__name__)
 
 
@@ -107,6 +105,7 @@ def _should_check_fallacies(role: AgentRole, round_num: int) -> bool:
 # ── Core agent turn ────────────────────────────────────────────
 
 async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
+    start_time = time.time()
     debate_data = state["debate"]
     debate_id   = state["debate_id"]
     round_num   = state["current_round"]
@@ -214,7 +213,7 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
             nonlocal full_content
             async for chunk in groq_client.chat_stream(
                 messages    = messages,
-                model       = config.model or "llama-3.3-70b-versatile",
+                model       = config.model or "openai/gpt-oss-120b",
                 temperature = config.temperature,
                 max_tokens  = 450,
             ):
@@ -301,7 +300,9 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
         debate_data["agents"][role.value]["turnCount"] = (
             debate_data["agents"][role.value].get("turnCount", 0) + 1
         )
-
+    end_time = time.time()
+    duration = round(end_time - start_time, 2)
+    logger.info(f"[METRICS] {role.value} | round={round_num} | duration={duration}s | tokens={len(full_content.split())}")
     # Broadcast turn_complete with camelCase payload
     await emit(state, WSEventType.turn_complete, turn_to_ws(turn))
 
@@ -328,7 +329,7 @@ async def moderator_node(state: DebateState) -> dict:
 async def round_start_node(state: DebateState) -> dict:
     new_round = state["current_round"] + 1
     logger.info(f"[Graph] ── Round {new_round} starting ──")
-
+    logger.info(f"[METRICS] ROUND_START | debate={debate_id} | round={new_round} | ts={time.time()}")
     try:
         await supabase_client.update_debate_status(
             state["debate_id"],
@@ -351,7 +352,7 @@ async def consensus_node(state: DebateState) -> dict:
     max_rounds  = debate_data["config"]["max_rounds"]
     prev_score  = state.get("consensus_score", 0.0)
     score       = prev_score
-
+    logger.info(f"[METRICS] ROUND_END | debate={debate_id} | round={round_num} | ts={time.time()}")
     pro = state.get("last_pro_stance", "")
     opp = state.get("last_opp_stance", "")
     if pro and opp:
@@ -439,7 +440,7 @@ async def judge_node(state: DebateState) -> dict:
                 rounds             = state["current_round"],
                 duration_sec       = 0,
             )}],
-            model       = "llama-3.3-70b-versatile",
+            model       = "openai/gpt-oss-120b",
             temperature = 0.3,
             max_tokens  = 900,
         )
