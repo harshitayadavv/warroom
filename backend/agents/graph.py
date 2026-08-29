@@ -360,7 +360,7 @@ async def consensus_node(state: DebateState) -> dict:
     max_rounds  = debate_data["config"]["max_rounds"]
     prev_score  = state.get("consensus_score", 0.0)
     score       = prev_score
-    logger.info(f"[METRICS] ROUND_END | debate={debate_id} | round={round_num} | ts={time.time()}")
+    logger.info(f"[METRICS] ROUND_END | debate={state['debate_id']} | round={round_num} | ts={time.time()}")
     pro = state.get("last_pro_stance", "")
     opp = state.get("last_opp_stance", "")
     if pro and opp:
