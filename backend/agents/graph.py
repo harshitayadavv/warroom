@@ -329,8 +329,7 @@ async def moderator_node(state: DebateState) -> dict:
 async def round_start_node(state: DebateState) -> dict:
     new_round = state["current_round"] + 1
     logger.info(f"[Graph] ── Round {new_round} starting ──")
-    logger.info(f"[METRICS] ROUND_START | debate={debate_id} | round={new_round} | ts={time.time()}")
-    try:
+    logger.info(f"[METRICS] ROUND_START | debate={state['debate_id']} | round={new_round} | ts={time.time()}")
         await supabase_client.update_debate_status(
             state["debate_id"],
             DebateStatus.running.value,
