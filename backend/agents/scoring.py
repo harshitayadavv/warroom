@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # openai/gpt-oss-20b is a reasoning model — it wraps output in <think>...</think>
 # before the actual JSON. We must strip that block before parsing.
-SCORING_MODEL = "qwen/qwen3.6-27b"
+SCORING_MODEL = "openai/gpt-oss-120b"
 
 
 def _strip_think_tags(text: str) -> str:

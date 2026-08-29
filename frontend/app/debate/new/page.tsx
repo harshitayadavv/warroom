@@ -13,7 +13,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'proponent-1',
     role: 'proponent' as AgentRole,
     name: 'AXIOM',
-    model: 'qwen/qwen3.6-27b',   // ← GROQ model
+    model: 'openai/gpt-oss-120b',   // ← GROQ model
     temperature: 0.7,
     expertiseLevel: 4,
     temperament: 'analytical',
@@ -22,7 +22,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'opponent-1',
     role: 'opponent' as AgentRole,
     name: 'REFUTE',
-    model: 'qwen/qwen3.6-27b',   // ← GROQ model
+    model: 'openai/gpt-oss-120b',   // ← GROQ model
     temperature: 0.8,
     expertiseLevel: 4,
     temperament: 'aggressive',
@@ -31,7 +31,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'fact_checker-1',
     role: 'fact_checker' as AgentRole,
     name: 'VERITAS',
-    model: 'qwen/qwen3.6-27b',      // ← Fast GROQ model for fact checking
+    model: 'openai/gpt-oss-120b',      // ← Fast GROQ model for fact checking
     temperature: 0.2,
     expertiseLevel: 5,
     temperament: 'balanced',
@@ -40,7 +40,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'moderator-1',
     role: 'moderator' as AgentRole,
     name: 'ARBITER',
-    model: 'qwen/qwen3.6-27b',   // ← GROQ model
+    model: 'openai/gpt-oss-120b',   // ← GROQ model
     temperature: 0.3,
     expertiseLevel: 5,
     temperament: 'diplomatic',
@@ -48,11 +48,11 @@ const DEFAULT_AGENTS: AgentConfig[] = [
 ]
 
 const GROQ_MODELS = [
-  { value: 'qwen/qwen3.6-27b', label: 'Llama 3.3 70B',     speed: 'fast',  quality: 'best' },
-  { value: 'qwen/qwen3.6-27b',   label: 'Llama 3.1 SpecDec', speed: 'fast',  quality: 'high' },
-  { value: 'qwen/qwen3.6-27b',      label: 'Mixtral 8x7B',      speed: 'med',   quality: 'high' },
-  { value: 'qwen/qwen3.6-27b',    label: 'Llama 3.1 8B',      speed: 'ultra', quality: 'med'  },
-  { value: 'qwen/qwen3.6-27b',            label: 'Gemma 2 9B',        speed: 'fast',  quality: 'med'  },
+  { value: 'openai/gpt-oss-120b', label: 'Llama 3.3 70B',     speed: 'fast',  quality: 'best' },
+  { value: 'openai/gpt-oss-120b',   label: 'Llama 3.1 SpecDec', speed: 'fast',  quality: 'high' },
+  { value: 'openai/gpt-oss-120b',      label: 'Mixtral 8x7B',      speed: 'med',   quality: 'high' },
+  { value: 'openai/gpt-oss-120b',    label: 'Llama 3.1 8B',      speed: 'ultra', quality: 'med'  },
+  { value: 'openai/gpt-oss-120b',            label: 'Gemma 2 9B',        speed: 'fast',  quality: 'med'  },
 ]
 
 const EXAMPLE_TOPICS = [
