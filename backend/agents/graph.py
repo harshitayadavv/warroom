@@ -213,7 +213,7 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
             nonlocal full_content
             async for chunk in groq_client.chat_stream(
                 messages    = messages,
-                model       = config.model or "openai/gpt-oss-120b",
+                model       = config.model or "qwen/qwen3.6-27b",
                 temperature = config.temperature,
                 max_tokens  = 450,
             ):
@@ -448,7 +448,7 @@ async def judge_node(state: DebateState) -> dict:
                 rounds             = state["current_round"],
                 duration_sec       = 0,
             )}],
-            model       = "openai/gpt-oss-120b",
+            model       = "qwen/qwen3.6-27b",
             temperature = 0.3,
             max_tokens  = 900,
         )
