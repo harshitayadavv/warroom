@@ -330,6 +330,12 @@ async def round_start_node(state: DebateState) -> dict:
     new_round = state["current_round"] + 1
     logger.info(f"[Graph] ── Round {new_round} starting ──")
     logger.info(f"[METRICS] ROUND_START | debate={state['debate_id']} | round={new_round} | ts={time.time()}")
+async def round_start_node(state: DebateState) -> dict:
+    new_round = state["current_round"] + 1
+    logger.info(f"[Graph] ── Round {new_round} starting ──")
+    logger.info(f"[METRICS] ROUND_START | debate={state['debate_id']} | round={new_round} | ts={time.time()}")
+
+    try:
         await supabase_client.update_debate_status(
             state["debate_id"],
             DebateStatus.running.value,
@@ -337,6 +343,9 @@ async def round_start_node(state: DebateState) -> dict:
         )
     except Exception as e:
         logger.warning(f"[DB] round update failed: {e}")
+
+    await emit(state, WSEventType.round_started, {"round": new_round})
+    return {**state, "current_round": new_round}
 
     await emit(state, WSEventType.round_started, {"round": new_round})
     return {**state, "current_round": new_round}
