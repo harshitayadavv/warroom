@@ -1,7 +1,3 @@
-# LOCATION: backend/main.py
-# FastAPI application entry point
-# Run with: uvicorn main:app --reload --port 8000
-
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -28,7 +24,7 @@ async def lifespan(app: FastAPI):
         from services.groq_client import chat
         _, usage = await chat(
             messages=[{"role": "user", "content": "ping"}],
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             max_tokens=5,
         )
         logger.info(f"✅ Groq connected — {usage['latency_ms']}ms")

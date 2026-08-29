@@ -1,5 +1,3 @@
-# LOCATION: backend/services/groq_client.py
-
 from __future__ import annotations
 import os, time, logging
 from typing import AsyncGenerator

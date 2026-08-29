@@ -85,7 +85,7 @@ async def extract_stance(agent_content: str) -> str:
     ]
     stance, _ = await chat(
         messages=messages,
-        model="llama-3.1-8b-instant",  # fast model for extraction
+        model="openai/gpt-oss-20b",  # fast model for extraction
         temperature=0.1,
         max_tokens=100,
     )
