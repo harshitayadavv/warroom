@@ -6,11 +6,11 @@ from services.groq_client import chat, DEFAULT_MODEL
 
 logger = logging.getLogger(__name__)
 
-SCORING_MODEL = DEFAULT_MODEL  # qwen/qwen3.6-27b with reasoning_effort=none in groq_client
+SCORING_MODEL = DEFAULT_MODEL
 
 
-def _extract_json_object(text: str) -> str:
-    """Strip think tags and markdown fences, return clean text."""
+def _extract_json(text: str) -> str:
+    """Strip think tags and markdown fences."""
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     return text
@@ -21,14 +21,14 @@ async def score_turn(content: str, role: AgentRole, round_num: int) -> AgentScor
         messages = [
             {
                 "role": "system",
-                "content": "You are a debate scoring system. Respond ONLY with a JSON object. No explanation.",
+                "content": "You are a debate scoring system. Respond ONLY with a JSON object. No explanation. No thinking.",
             },
             {
                 "role": "user",
                 "content": (
                     f"Score this argument:\nAGENT: {role.value} | ROUND: {round_num}\n"
                     f"ARGUMENT: {content[:600]}\n\n"
-                    f'Return ONLY: {{"logic_score":0-100,"evidence_score":0-100,"sentiment_score":-1.0to1.0}}'
+                    f'Return ONLY: {{"logic_score":75,"evidence_score":70,"sentiment_score":0.5}}'
                 ),
             },
         ]
@@ -38,12 +38,12 @@ async def score_turn(content: str, role: AgentRole, round_num: int) -> AgentScor
             timeout=10.0,
         )
 
-        clean = _extract_json_object(raw)
+        clean = _extract_json(raw)
         start = clean.find('{')
         end   = clean.rfind('}') + 1
         if start == -1 or end == 0:
             raise ValueError("No JSON found")
-        data = json.loads(clean[start:end])
+        data  = json.loads(clean[start:end])
 
         score = AgentScore(
             logic_score     = float(data.get("logic_score",    65)),
@@ -66,12 +66,12 @@ async def detect_fallacies(content: str) -> list[Fallacy]:
         messages = [
             {
                 "role": "system",
-                "content": "You are a logical fallacy detector. Respond ONLY with a JSON array.",
+                "content": "Detect logical fallacies. Respond ONLY with a JSON array. No thinking.",
             },
             {
                 "role": "user",
                 "content": (
-                    f"Detect fallacies (return [] if none):\n{content[:500]}\n\n"
+                    f"Find fallacies (return [] if none):\n{content[:500]}\n\n"
                     f'Return ONLY: [{{"type":"ad_hominem","description":"brief","severity":"low","quote":"phrase"}}]'
                 ),
             },
@@ -82,7 +82,7 @@ async def detect_fallacies(content: str) -> list[Fallacy]:
             timeout=10.0,
         )
 
-        clean = _extract_json_object(raw)
+        clean = _extract_json(raw)
         start = clean.find('[')
         end   = clean.rfind(']') + 1
         if start == -1 or end == 0:
