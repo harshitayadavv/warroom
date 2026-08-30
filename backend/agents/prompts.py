@@ -28,7 +28,8 @@ This is not a factual debate. The user is making a personal life decision: "{top
 """
 
     expertise_desc = [
-        "", "Speak plainly. Use everyday examples. No jargon.",
+        "",
+        "Speak plainly. Use everyday examples. No jargon.",
         "Show familiarity with the key debates and common knowledge.",
         "Demonstrate domain expertise. Reference studies and expert consensus.",
         "Show deep technical knowledge. Challenge assumptions. Cite cutting-edge research.",
@@ -36,14 +37,14 @@ This is not a factual debate. The user is making a personal life decision: "{top
     ][config.expertise_level]
 
     temperament_note = {
-        "aggressive":  "Be direct and forceful. Never concede ground without gaining something. Attack logical weaknesses immediately.",
-        "analytical":  "Lead with structured logic. Use numbered points. Employ formal reasoning. Show your chain of inference.",
-        "diplomatic":  "Acknowledge opposing views before dismantling them. Find common ground where possible, then diverge.",
-        "balanced":    "Adapt your style to the flow of the debate. Mix evidence, logic, and rhetoric as needed.",
+        "aggressive": "Be direct and forceful. Never concede ground without gaining something. Attack logical weaknesses immediately.",
+        "analytical": "Lead with structured logic. Use numbered points. Employ formal reasoning. Show your chain of inference.",
+        "diplomatic": "Acknowledge opposing views before dismantling them. Find common ground where possible, then diverge.",
+        "balanced": "Adapt your style to the flow of the debate. Mix evidence, logic, and rhetoric as needed.",
     }.get(config.temperament.value, "")
 
     if config.role == AgentRole.proponent:
-        return f"""You are {config.name}, the PROPONENT in a structured multi-agent debate.
+        prompt = f"""You are {config.name}, the PROPONENT in a structured multi-agent debate.
 {personal_note}
 TOPIC: "{topic}"
 ROUND: {round_num} of {max_rounds}
@@ -65,8 +66,11 @@ RULES:
 - End with your single most powerful point
 - No logical fallacies — they are detected automatically""".strip()
 
+        prompt += "\n\nIMPORTANT: Do NOT output any <think> tags or internal reasoning. Start your response immediately with CONFIDENCE: followed by your argument. No preamble."
+        return prompt
+
     elif config.role == AgentRole.opponent:
-        return f"""You are {config.name}, the OPPONENT in a structured multi-agent debate.
+        prompt = f"""You are {config.name}, the OPPONENT in a structured multi-agent debate.
 {personal_note}
 TOPIC: "{topic}"
 ROUND: {round_num} of {max_rounds}
@@ -88,8 +92,11 @@ RULES:
 - Provide at least one concrete alternative or counter-proposal
 - No fabricated data""".strip()
 
+        prompt += "\n\nIMPORTANT: Do NOT output any <think> tags or internal reasoning. Start your response immediately with CONFIDENCE: followed by your argument. No preamble."
+        return prompt
+
     elif config.role == AgentRole.fact_checker:
-        return f"""You are {config.name}, the FACT-CHECKER. You are completely NEUTRAL.
+        prompt = f"""You are {config.name}, the FACT-CHECKER. You are completely NEUTRAL.
 {personal_note}
 TOPIC: "{topic}"
 ROUND: {round_num} of {max_rounds}
@@ -106,18 +113,21 @@ CLAIMS AUDIT:
   Reason: [why, with source if possible]
 
 FALLACIES DETECTED:
-- [fallacy_type]: "[quote from argument]" — [brief explanation] — SEVERITY: [low/medium/high]
+- [fallacy_type]&#58; "[quote from argument]" — [brief explanation] — SEVERITY: [low/medium/high]
 (Write "None detected" if clean)
 
 PENALTY:
-- [agent_role]: -[0-20] points for [specific reason]
+- [agent_role]&#58; -[0-20] points for [specific reason]
 (Write "No penalties" if no fabrications found)
 
 CONFIDENCE IN AUDIT: [0-100]
 NOTES: [any nuance — e.g. "claim is technically true but misleading"]""".strip()
 
+        prompt += "\n\nIMPORTANT: Do NOT output any <think> tags or internal reasoning. Start your response immediately with CONFIDENCE: followed by your argument. No preamble."
+        return prompt
+
     elif config.role == AgentRole.moderator:
-        return f"""You are {config.name}, the JUDGE/MODERATOR of this debate.
+        prompt = f"""You are {config.name}, the JUDGE/MODERATOR of this debate.
 {personal_note}
 TOPIC: "{topic}"
 ROUND: {round_num} of {max_rounds}
@@ -136,7 +146,12 @@ CONSENSUS TRAJECTORY: [Diverging / Stable / Slowly Converging / Converging]
 NEXT SPEAKER: [proponent | opponent | fact_checker]
 ROUND SUMMARY: [3-4 sentences suitable for compression into debate memory]""".strip()
 
-    return f"You are {config.name}, a debate participant. Topic: {topic}"
+        prompt += "\n\nIMPORTANT: Do NOT output any <think> tags or internal reasoning. Start your response immediately with CONFIDENCE: followed by your argument. No preamble."
+        return prompt
+
+    prompt = f"You are {config.name}, a debate participant. Topic: {topic}"
+    prompt += "\n\nIMPORTANT: Do NOT output any <think> tags or internal reasoning. Start your response immediately with CONFIDENCE: followed by your argument. No preamble."
+    return prompt
 
 
 def get_judge_verdict_prompt(
