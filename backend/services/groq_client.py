@@ -114,3 +114,4 @@ async def embed_text(text: str) -> list[float]:
         )
     except ImportError:
         return [0.0] * 384
+# v2-buffer-strip
