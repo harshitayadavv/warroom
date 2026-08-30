@@ -30,16 +30,11 @@ def get_client():
 
 
 def _strip_think(text: str) -> str:
-    """Remove <think>...</think> blocks. If entire response is in think tags,
-    extract the content rather than returning empty string."""
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     if not cleaned:
-        # Entire response was in think block — extract it as fallback
         match = re.search(r'<think>(.*?)</think>', text, flags=re.DOTALL)
         if match:
-            # Return the think content but strip the internal reasoning prefix
             inner = match.group(1).strip()
-            # Try to find the actual answer after any "answer:" or similar marker
             for marker in ['answer:', 'response:', 'argument:', 'reply:']:
                 idx = inner.lower().find(marker)
                 if idx != -1:
@@ -82,18 +77,7 @@ async def chat_stream(
     temperature: float = 0.7,
     max_tokens:  int   = 1024,
 ) -> AsyncGenerator[str, None]:
-    """
-    Collect the full streamed response, strip think tags, then yield
-    the clean content in small chunks so the frontend still sees streaming.
-
-    We cannot process think tags token-by-token reliably because:
-    - The model may put the ENTIRE response in think tags
-    - Tags are often split across multiple chunks
-    - Real-time suppression discards content that should be shown
-
-    This approach: buffer everything, strip once, re-stream in 20-char chunks.
-    Latency to first token is slightly higher but output is always correct.
-    """
+    # Collect full response first, strip think tags, then re-yield in chunks
     stream = await get_client().chat.completions.create(
         model       = model,
         messages    = messages,
@@ -102,19 +86,17 @@ async def chat_stream(
         stream      = True,
     )
 
-    # Collect full response
     full = ""
     async for chunk in stream:
         delta = chunk.choices[0].delta.content
         if delta:
             full += delta
 
-    # Strip think tags (with fallback if everything was in think block)
     clean = _strip_think(full)
     if not clean:
         clean = "[Agent produced no response]"
 
-    # Re-stream in small chunks so frontend shows typing effect
+    # Re-yield in 15-char chunks for typing effect
     chunk_size = 15
     for i in range(0, len(clean), chunk_size):
         yield clean[i:i + chunk_size]
