@@ -7,13 +7,12 @@ import { useAuth } from '@/hooks/useAuth'
 import { api } from '@/lib/api'
 import type { DebateConfig, AgentConfig, AgentRole } from '@/lib/types'
 
-// ✅ ALL GROQ MODELS — no Claude models here
 const DEFAULT_AGENTS: AgentConfig[] = [
   {
     id: 'proponent-1',
     role: 'proponent' as AgentRole,
     name: 'AXIOM',
-    model: 'openai/gpt-oss-120b',   // ← GROQ model
+    model: 'qwen/qwen3.6-27b',
     temperature: 0.7,
     expertiseLevel: 4,
     temperament: 'analytical',
@@ -22,7 +21,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'opponent-1',
     role: 'opponent' as AgentRole,
     name: 'REFUTE',
-    model: 'openai/gpt-oss-120b',   // ← GROQ model
+    model: 'qwen/qwen3.6-27b',
     temperature: 0.8,
     expertiseLevel: 4,
     temperament: 'aggressive',
@@ -31,7 +30,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'fact_checker-1',
     role: 'fact_checker' as AgentRole,
     name: 'VERITAS',
-    model: 'openai/gpt-oss-120b',      // ← Fast GROQ model for fact checking
+    model: 'qwen/qwen3.6-27b',
     temperature: 0.2,
     expertiseLevel: 5,
     temperament: 'balanced',
@@ -40,7 +39,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'moderator-1',
     role: 'moderator' as AgentRole,
     name: 'ARBITER',
-    model: 'openai/gpt-oss-120b',   // ← GROQ model
+    model: 'qwen/qwen3.6-27b',
     temperature: 0.3,
     expertiseLevel: 5,
     temperament: 'diplomatic',
@@ -48,46 +47,43 @@ const DEFAULT_AGENTS: AgentConfig[] = [
 ]
 
 const GROQ_MODELS = [
-  { value: 'openai/gpt-oss-120b', label: 'Llama 3.3 70B',     speed: 'fast',  quality: 'best' },
-  { value: 'openai/gpt-oss-120b',   label: 'Llama 3.1 SpecDec', speed: 'fast',  quality: 'high' },
-  { value: 'openai/gpt-oss-120b',      label: 'Mixtral 8x7B',      speed: 'med',   quality: 'high' },
-  { value: 'openai/gpt-oss-120b',    label: 'Llama 3.1 8B',      speed: 'ultra', quality: 'med'  },
-  { value: 'openai/gpt-oss-120b',            label: 'Gemma 2 9B',        speed: 'fast',  quality: 'med'  },
+  { value: 'qwen/qwen3.6-27b',    label: 'Qwen 3.6 27B (recommended)', speed: 'fast',  quality: 'best' },
+  { value: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B',               speed: 'fast',  quality: 'high' },
+  { value: 'openai/gpt-oss-20b',  label: 'GPT-OSS 20B (fast)',          speed: 'ultra', quality: 'med'  },
 ]
 
 const EXAMPLE_TOPICS = [
-  { icon: '🐕', text: 'Should I buy a dog?',                          tag: 'Life' },
-  { icon: '💼', text: 'Should I quit my job and start freelancing?',  tag: 'Career' },
+  { icon: '🐕', text: 'Should I buy a dog?',                          tag: 'Life'    },
+  { icon: '💼', text: 'Should I quit my job and start freelancing?',  tag: 'Career'  },
   { icon: '🏠', text: 'Should I rent or buy a house right now?',      tag: 'Finance' },
-  { icon: '🤖', text: 'AI development should be paused immediately',  tag: 'Tech' },
+  { icon: '🤖', text: 'AI development should be paused immediately',  tag: 'Tech'    },
   { icon: '⚡', text: 'Nuclear energy is essential for net-zero',     tag: 'Climate' },
   { icon: '📱', text: 'Social media does more harm than good',        tag: 'Society' },
 ]
 
 const ROLE_META: Record<string, { color: string; label: string; icon: string; desc: string }> = {
-  proponent:    { color: '#00ff88', icon: '▲', label: 'Proponent',    desc: 'Argues FOR the topic' },
-  opponent:     { color: '#ff3c3c', icon: '▼', label: 'Opponent',     desc: 'Argues AGAINST' },
-  fact_checker: { color: '#f5a623', icon: '◆', label: 'Fact-Checker', desc: 'Audits all claims' },
-  moderator:    { color: '#1e90ff', icon: '◉', label: 'Judge',        desc: 'Scores & delivers verdict' },
+  proponent:    { color: '#00ff88', icon: '▲', label: 'Proponent',    desc: 'Argues FOR the topic'       },
+  opponent:     { color: '#ff3c3c', icon: '▼', label: 'Opponent',     desc: 'Argues AGAINST'             },
+  fact_checker: { color: '#f5a623', icon: '◆', label: 'Fact-Checker', desc: 'Audits all claims'          },
+  moderator:    { color: '#1e90ff', icon: '◉', label: 'Judge',        desc: 'Scores & delivers verdict'  },
 }
 
 export default function NewDebatePage() {
-  const router              = useRouter()
-  const { accessToken }     = useAuth()
+  const router                       = useRouter()
+  const { accessToken }              = useAuth()
   const [isPending, startTransition] = useTransition()
-
-  const [step, setStep]             = useState<1 | 2>(1)
-  const [topic, setTopic]           = useState('')
-  const [context, setContext]       = useState('')
-  const [maxRounds, setMaxRounds]   = useState(5)
-  const [threshold, setThreshold]   = useState(0.85)
-  const [mode, setMode]             = useState<'adversarial' | 'collaborative' | 'socratic'>('adversarial')
-  const [webSearch, setWebSearch]   = useState(true)
-  const [pythonRepl, setPythonRepl] = useState(false)
+  const [step, setStep]              = useState<1 | 2>(1)
+  const [topic, setTopic]            = useState('')
+  const [context, setContext]        = useState('')
+  const [maxRounds, setMaxRounds]    = useState(5)
+  const [threshold, setThreshold]    = useState(0.85)
+  const [mode, setMode]              = useState<'adversarial' | 'collaborative' | 'socratic'>('adversarial')
+  const [webSearch, setWebSearch]    = useState(true)
+  const [pythonRepl, setPythonRepl]  = useState(false)
   const [humanInterrupt, setHumanInterrupt] = useState(true)
-  const [agents, setAgents]         = useState<AgentConfig[]>(DEFAULT_AGENTS)
-  const [activeAgent, setActiveAgent] = useState('proponent')
-  const [error, setError]           = useState('')
+  const [agents, setAgents]          = useState<AgentConfig[]>(DEFAULT_AGENTS)
+  const [activeAgent, setActiveAgent]= useState('proponent')
+  const [error, setError]            = useState('')
 
   const updateAgent = (role: string, patch: Partial<AgentConfig>) =>
     setAgents(prev => prev.map(a => a.role === role ? { ...a, ...patch } : a))
@@ -95,15 +91,15 @@ export default function NewDebatePage() {
   const handleSubmit = async () => {
     if (!topic.trim()) return
     const config: DebateConfig = {
-      topic: topic.trim(),
+      topic:                topic.trim(),
       maxRounds,
       agents,
-      enableWebSearch: webSearch,
-      enablePythonRepl: pythonRepl,
+      enableWebSearch:      webSearch,
+      enablePythonRepl:     pythonRepl,
       enableHumanInterrupt: humanInterrupt,
-      consensusThreshold: threshold,
-      debateMode: mode,
-      context: context.trim() || undefined,
+      consensusThreshold:   threshold,
+      debateMode:           mode,
+      context:              context.trim() || undefined,
     }
     startTransition(async () => {
       try {
@@ -237,8 +233,7 @@ export default function NewDebatePage() {
             {/* Rounds */}
             <div>
               <FieldLabel>MAX ROUNDS: {maxRounds}</FieldLabel>
-              <input type="range" min={2} max={10} value={maxRounds}
-                onChange={e => setMaxRounds(Number(e.target.value))}
+              <input type="range" min={2} max={10} value={maxRounds} onChange={e => setMaxRounds(Number(e.target.value))}
                 style={{ width: '100%', accentColor: 'var(--amber)', cursor: 'pointer', marginTop: '8px' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '8px', color: 'var(--text-muted)', marginTop: '2px' }}>
                 <span>2 Quick</span><span>10 Deep</span>
@@ -248,8 +243,7 @@ export default function NewDebatePage() {
             {/* Consensus threshold */}
             <div>
               <FieldLabel>CONSENSUS TARGET: {Math.round(threshold * 100)}%</FieldLabel>
-              <input type="range" min={60} max={95} value={Math.round(threshold * 100)}
-                onChange={e => setThreshold(Number(e.target.value) / 100)}
+              <input type="range" min={60} max={95} value={Math.round(threshold * 100)} onChange={e => setThreshold(Number(e.target.value) / 100)}
                 style={{ width: '100%', accentColor: '#00ff88', cursor: 'pointer', marginTop: '8px' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '8px', color: 'var(--text-muted)', marginTop: '2px' }}>
                 <span>60% Lenient</span><span>95% Strict</span>
@@ -261,9 +255,9 @@ export default function NewDebatePage() {
               <FieldLabel>FEATURES</FieldLabel>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                 {[
-                  { label: 'Live web search', val: webSearch, set: setWebSearch },
-                  { label: 'Human interrupt', val: humanInterrupt, set: setHumanInterrupt },
-                  { label: 'Python REPL',     val: pythonRepl,  set: setPythonRepl },
+                  { label: 'Live web search', val: webSearch,      set: setWebSearch      },
+                  { label: 'Human interrupt',  val: humanInterrupt, set: setHumanInterrupt },
+                  { label: 'Python REPL',      val: pythonRepl,     set: setPythonRepl     },
                 ].map(({ label, val, set }) => (
                   <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                     <div onClick={() => set(!val)} style={{ width: '32px', height: '16px', background: val ? 'var(--green-lock)' : 'var(--bg-elevated)', border: `1px solid ${val ? 'var(--green-lock)' : 'var(--border-subtle)'}`, borderRadius: '8px', position: 'relative', cursor: 'pointer', transition: 'all 0.3s', flexShrink: 0 }}>
@@ -337,7 +331,6 @@ export default function NewDebatePage() {
                     style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', background: 'transparent', border: 'none', outline: 'none', padding: 0, width: '100%' }}
                   />
                 </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
 
                   {/* Model */}
@@ -415,7 +408,8 @@ export default function NewDebatePage() {
                 border: '1px solid var(--amber)', borderRadius: '2px',
                 cursor: isPending ? 'wait' : 'pointer',
                 color: 'var(--amber)', fontFamily: 'var(--font-display)',
-                fontSize: '13px', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase' as const,
+                fontSize: '13px', fontWeight: 700, letterSpacing: '0.2em',
+                textTransform: 'uppercase' as const,
                 boxShadow: '0 0 20px rgba(245,166,35,0.1)', transition: 'all 0.2s',
               }}
             >

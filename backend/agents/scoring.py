@@ -2,27 +2,16 @@
 
 import asyncio, json, logging, re
 from models.schemas import AgentScore, Fallacy, FallacyType, AgentRole
-from services.groq_client import chat
+from services.groq_client import chat, DEFAULT_MODEL
 
 logger = logging.getLogger(__name__)
 
-# openai/gpt-oss-20b is a reasoning model — it wraps output in <think>...</think>
-# before the actual JSON. We must strip that block before parsing.
-SCORING_MODEL = "openai/gpt-oss-120b"
+SCORING_MODEL = DEFAULT_MODEL  # qwen/qwen3.6-27b with reasoning_effort=none in groq_client
 
 
-def _strip_think_tags(text: str) -> str:
-    """Remove <think>...</think> blocks that reasoning models prepend to output."""
-    # Remove everything between <think> and </think> including the tags
-    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-    return cleaned.strip()
-
-
-def _extract_json(text: str) -> str:
-    """Extract JSON object or array from text, handling think tags and markdown."""
-    # First strip think tags
-    text = _strip_think_tags(text)
-    # Strip markdown code fences
+def _extract_json_object(text: str) -> str:
+    """Strip think tags and markdown fences, return clean text."""
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     return text
 
@@ -32,29 +21,28 @@ async def score_turn(content: str, role: AgentRole, round_num: int) -> AgentScor
         messages = [
             {
                 "role": "system",
-                "content": "Score this debate argument. Respond ONLY with JSON, no markdown, no explanation, no think tags.",
+                "content": "You are a debate scoring system. Respond ONLY with a JSON object. No explanation.",
             },
             {
                 "role": "user",
                 "content": (
-                    f"AGENT: {role.value} | ROUND: {round_num}\n"
+                    f"Score this argument:\nAGENT: {role.value} | ROUND: {round_num}\n"
                     f"ARGUMENT: {content[:600]}\n\n"
-                    f"Return ONLY this JSON object:\n"
-                    f'{{"logic_score":0-100,"evidence_score":0-100,"sentiment_score":-1.0to1.0}}'
+                    f'Return ONLY: {{"logic_score":0-100,"evidence_score":0-100,"sentiment_score":-1.0to1.0}}'
                 ),
             },
         ]
 
         raw, _ = await asyncio.wait_for(
-            chat(messages=messages, model=SCORING_MODEL, temperature=0.1, max_tokens=200),
+            chat(messages=messages, model=SCORING_MODEL, temperature=0.1, max_tokens=100),
             timeout=10.0,
         )
 
-        clean = _extract_json(raw)
+        clean = _extract_json_object(raw)
         start = clean.find('{')
         end   = clean.rfind('}') + 1
         if start == -1 or end == 0:
-            raise ValueError("No JSON object found")
+            raise ValueError("No JSON found")
         data = json.loads(clean[start:end])
 
         score = AgentScore(
@@ -66,7 +54,7 @@ async def score_turn(content: str, role: AgentRole, round_num: int) -> AgentScor
         return score
 
     except asyncio.TimeoutError:
-        logger.warning("[Scoring] score_turn timed out — using defaults")
+        logger.warning("[Scoring] score_turn timed out")
         return AgentScore(logic_score=65, evidence_score=65, total_score=65)
     except Exception as e:
         logger.warning(f"[Scoring] score_turn failed: {e}")
@@ -74,17 +62,16 @@ async def score_turn(content: str, role: AgentRole, round_num: int) -> AgentScor
 
 
 async def detect_fallacies(content: str) -> list[Fallacy]:
-    """Only called for proponent/opponent on round >= 2 (guarded in graph.py)."""
     try:
         messages = [
             {
                 "role": "system",
-                "content": "Detect logical fallacies. Respond ONLY with a JSON array, no markdown, no think tags.",
+                "content": "You are a logical fallacy detector. Respond ONLY with a JSON array.",
             },
             {
                 "role": "user",
                 "content": (
-                    f"Find fallacies (return [] if none):\n{content[:500]}\n\n"
+                    f"Detect fallacies (return [] if none):\n{content[:500]}\n\n"
                     f'Return ONLY: [{{"type":"ad_hominem","description":"brief","severity":"low","quote":"phrase"}}]'
                 ),
             },
@@ -95,7 +82,7 @@ async def detect_fallacies(content: str) -> list[Fallacy]:
             timeout=10.0,
         )
 
-        clean = _extract_json(raw)
+        clean = _extract_json_object(raw)
         start = clean.find('[')
         end   = clean.rfind(']') + 1
         if start == -1 or end == 0:

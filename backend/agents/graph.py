@@ -179,6 +179,7 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
         config=config, topic=topic, round_num=round_num,
         max_rounds=max_rounds, is_personal=is_personal, context=context,
     )
+    
     messages = [{"role": "system", "content": system_prompt}]
 
     transcript = debate_data.get("transcript", [])
@@ -204,70 +205,41 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
         "isStreaming": False,
     })
 
-    # ── Stream response ──────────────────────────────────────────
+    # ── Stream response ──────────────────────────────────────────────────────
     full_content = ""
     await emit(state, WSEventType.agent_speaking, {
         "agentRole": role.value, "content": "", "isStreaming": True,
     })
 
-        
-
-    # Buffer to track if we're inside a <think> block during streaming
-    _in_think = False
-    _think_buf = ""
-
     try:
         async def _stream():
-            nonlocal full_content, _in_think, _think_buf
+            nonlocal full_content
             async for chunk in groq_client.chat_stream(
                 messages    = messages,
-                model       = config.model or "openai/gpt-oss-120b",
+                model       = config.model or "qwen/qwen3.6-27b",
                 temperature = config.temperature,
-                max_tokens  = 600,
+                max_tokens  = 500,
             ):
                 full_content += chunk
-
-                # Build a combined buffer to detect think tags across chunks
-                _think_buf += chunk
-
-                # Check if we're entering or leaving a think block
-                if '<think>' in _think_buf:
-                    _in_think = True
-                if '</think>' in _think_buf:
-                    _in_think = False
-                    _think_buf = ""  # reset after closing tag
-
-                # Only stream to frontend if NOT inside a think block
-                if not _in_think and '</think>' not in chunk:
-                    visible_chunk = chunk
-                    if '<think>' in visible_chunk:
-                        # Strip partial opening tag
-                        visible_chunk = visible_chunk.split('<think>')[0]
-                    if visible_chunk.strip():
-                        await emit(state, WSEventType.agent_speaking, {
-                            "agentRole": role.value, "content": visible_chunk, "isStreaming": True,
-                        })
+                await emit(state, WSEventType.agent_speaking, {
+                    "agentRole": role.value, "content": chunk, "isStreaming": True,
+                })
 
         await asyncio.wait_for(_stream(), timeout=60.0)
 
     except asyncio.TimeoutError:
-        logger.error(f"[{role.value}] Stream timed out")
+        logger.error(f"[{role.value}] Stream timed out after 60s")
         if not full_content:
             full_content = f"[{config.name} response timed out]"
     except Exception as e:
         logger.error(f"[{role.value}] Stream error: {e}")
         if not full_content:
-            full_content = f"[{config.name} encountered an error]"
+            full_content = f"[{config.name} encountered an error: {str(e)[:80]}]"
 
-    # Strip ALL think tags from final stored content
-    # This prevents think content from polluting the transcript
-    # that gets passed to the next agent as context
     full_content = _re.sub(r'<think>.*?</think>', '', full_content, flags=_re.DOTALL).strip()
     if not full_content:
         full_content = f"[{config.name} produced no visible output]"
 
-    # ── Score + fallacies IN PARALLEL ─────────────────────────────
-    # Only run detect_fallacies when it makes sense (avoids TPM limit)
     try:
         if _should_check_fallacies(role, round_num):
             results = await asyncio.gather(
