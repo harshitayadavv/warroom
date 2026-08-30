@@ -30,13 +30,21 @@ def get_client():
 
 
 def _strip_think(text: str) -> str:
-    """Remove <think>...</think> blocks from reasoning model output."""
+    """Remove <think>...</think> blocks. If entire response is in think tags,
+    extract the content rather than returning empty string."""
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-    # If stripping think tags leaves nothing, return the content inside think tags
     if not cleaned:
+        # Entire response was in think block — extract it as fallback
         match = re.search(r'<think>(.*?)</think>', text, flags=re.DOTALL)
         if match:
-            return match.group(1).strip()
+            # Return the think content but strip the internal reasoning prefix
+            inner = match.group(1).strip()
+            # Try to find the actual answer after any "answer:" or similar marker
+            for marker in ['answer:', 'response:', 'argument:', 'reply:']:
+                idx = inner.lower().find(marker)
+                if idx != -1:
+                    return inner[idx + len(marker):].strip()
+            return inner
     return cleaned
 
 
@@ -75,9 +83,16 @@ async def chat_stream(
     max_tokens:  int   = 1024,
 ) -> AsyncGenerator[str, None]:
     """
-    Stream tokens, suppressing <think> blocks entirely.
-    Tokens inside <think>...</think> are buffered and discarded.
-    Tokens outside are yielded immediately to the frontend.
+    Collect the full streamed response, strip think tags, then yield
+    the clean content in small chunks so the frontend still sees streaming.
+
+    We cannot process think tags token-by-token reliably because:
+    - The model may put the ENTIRE response in think tags
+    - Tags are often split across multiple chunks
+    - Real-time suppression discards content that should be shown
+
+    This approach: buffer everything, strip once, re-stream in 20-char chunks.
+    Latency to first token is slightly higher but output is always correct.
     """
     stream = await get_client().chat.completions.create(
         model       = model,
@@ -87,48 +102,22 @@ async def chat_stream(
         stream      = True,
     )
 
-    in_think  = False
-    buf       = ""
-
+    # Collect full response
+    full = ""
     async for chunk in stream:
         delta = chunk.choices[0].delta.content
-        if not delta:
-            continue
+        if delta:
+            full += delta
 
-        buf += delta
+    # Strip think tags (with fallback if everything was in think block)
+    clean = _strip_think(full)
+    if not clean:
+        clean = "[Agent produced no response]"
 
-        # Process buffer character by character to handle tags split across chunks
-        while buf:
-            if in_think:
-                end = buf.find('</think>')
-                if end != -1:
-                    # Found closing tag — exit think mode, discard up to and including tag
-                    buf      = buf[end + len('</think>'):]
-                    in_think = False
-                else:
-                    # Still inside think block — discard entire buffer and wait for more
-                    buf = ""
-                    break
-            else:
-                start_idx = buf.find('<think>')
-                if start_idx != -1:
-                    # Yield everything before the think tag
-                    before = buf[:start_idx]
-                    if before:
-                        yield before
-                    buf      = buf[start_idx + len('<think>'):]
-                    in_think = True
-                else:
-                    # No think tag — check if buffer might be a partial tag
-                    # Keep last 8 chars in buffer in case tag is split across chunks
-                    if len(buf) > 8:
-                        yield buf[:-8]
-                        buf = buf[-8:]
-                    break
-
-    # Yield any remaining buffer content
-    if buf and not in_think:
-        yield buf
+    # Re-stream in small chunks so frontend shows typing effect
+    chunk_size = 15
+    for i in range(0, len(clean), chunk_size):
+        yield clean[i:i + chunk_size]
 
 
 async def embed_text(text: str) -> list[float]:
