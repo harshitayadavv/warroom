@@ -30,16 +30,21 @@ def get_client():
 
 
 def _strip_think(text: str) -> str:
+    # Handle both closed <think>...</think> and unclosed <think>... 
+    # Remove closed think blocks first
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    # Remove any remaining unclosed <think> block (everything after <think>)
+    cleaned = re.sub(r'<think>.*', '', cleaned, flags=re.DOTALL).strip()
+    # If nothing left, extract content after </think> as fallback
     if not cleaned:
-        match = re.search(r'<think>(.*?)</think>', text, flags=re.DOTALL)
-        if match:
-            inner = match.group(1).strip()
-            for marker in ['answer:', 'response:', 'argument:', 'reply:']:
-                idx = inner.lower().find(marker)
-                if idx != -1:
-                    return inner[idx + len(marker):].strip()
-            return inner
+        after_close = text.split('</think>')
+        if len(after_close) > 1:
+            cleaned = after_close[-1].strip()
+    if not cleaned:
+        # Last resort: strip everything up to and including last </think>
+        parts = text.rsplit('</think>', 1)
+        if len(parts) > 1:
+            cleaned = parts[1].strip()
     return cleaned
 
 
