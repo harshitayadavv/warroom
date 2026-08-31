@@ -1,10 +1,10 @@
+# LOCATION: backend/agents/graph.py
+
 from __future__ import annotations
 import json, logging, asyncio
 from typing import TypedDict, Any
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
-import re as _re
-
 
 from models.schemas import (
     Debate, DebateTurn, AgentRole, AgentScore, ToolCall,
@@ -17,14 +17,10 @@ from agents.consensus import (
     compute_consensus_score, extract_stance,
     detect_personal_topic, is_consensus_reached,
 )
-import time
+
 logger = logging.getLogger(__name__)
 
-
-# ── WS Callback Registry ───────────────────────────────────────
-# Functions are NOT msgpack-serializable, so we cannot store them
-# in LangGraph state. Instead we keep a module-level dict keyed by
-# debate_id. Nodes call get_ws_callback(debate_id) to retrieve it.
+# ── WS Callback Registry ──────────────────────────────────────────────────────
 
 _WS_CALLBACKS: dict[str, Any] = {}
 
@@ -38,7 +34,7 @@ def get_ws_callback(debate_id: str) -> Any:
     return _WS_CALLBACKS.get(debate_id)
 
 
-# ── camelCase serializer for WebSocket payloads ────────────────
+# ── camelCase WS serializer ───────────────────────────────────────────────────
 
 def turn_to_ws(turn: DebateTurn) -> dict:
     d     = turn.model_dump(mode="json")
@@ -52,9 +48,9 @@ def turn_to_ws(turn: DebateTurn) -> dict:
         "content":     d.get("content"),
         "isInterrupt": d.get("is_interrupt", False),
         "score": {
-            "logicScore":        score.get("logic_score",    50),
-            "evidenceScore":     score.get("evidence_score", 50),
-            "totalScore":        score.get("total_score",    50),
+            "logicScore":        score.get("logic_score",    65),
+            "evidenceScore":     score.get("evidence_score", 65),
+            "totalScore":        score.get("total_score",    65),
             "sentimentScore":    score.get("sentiment_score", 0),
             "fallaciesDetected": score.get("fallacies_detected") or [],
         },
@@ -63,9 +59,7 @@ def turn_to_ws(turn: DebateTurn) -> dict:
     }
 
 
-# ── State ──────────────────────────────────────────────────────
-# IMPORTANT: every value here must be msgpack-serializable.
-# Primitives, dicts, lists only — NO functions, NO callables.
+# ── State ─────────────────────────────────────────────────────────────────────
 
 class DebateState(TypedDict):
     debate_id:       str
@@ -77,10 +71,9 @@ class DebateState(TypedDict):
     consensus_score: float
     should_end:      bool
     interrupt_data:  dict | None
-    # ws_callback intentionally REMOVED — use get_ws_callback(debate_id)
 
 
-# ── Emit ───────────────────────────────────────────────────────
+# ── Emit ──────────────────────────────────────────────────────────────────────
 
 async def emit(state: DebateState, event_type: WSEventType, payload: Any = None):
     cb = get_ws_callback(state["debate_id"])
@@ -91,23 +84,17 @@ async def emit(state: DebateState, event_type: WSEventType, payload: Any = None)
             logger.warning(f"[WS emit] {e}")
 
 
-# ── Fallacy rate-limit guard ───────────────────────────────────
-# detect_fallacies uses llama-3.1-8b-instant which has a tiny TPM
-# limit (6000). Running it every turn causes constant 429s and 8s
-# timeouts that slow every round by ~8s. We only call it on rounds
-# where the agent has already spoken at least once (round > 1) and
-# only for proponent/opponent (not fact_checker/moderator).
+# ── Fallacy guard ─────────────────────────────────────────────────────────────
 
-_ROLES_WITH_FALLACY_CHECK = {AgentRole.proponent, AgentRole.opponent}
+_FALLACY_ROLES = {AgentRole.proponent, AgentRole.opponent}
 
 def _should_check_fallacies(role: AgentRole, round_num: int) -> bool:
-    return role in _ROLES_WITH_FALLACY_CHECK and round_num >= 2
+    return role in _FALLACY_ROLES and round_num >= 2
 
 
-# ── Core agent turn ────────────────────────────────────────────
+# ── Core agent turn ───────────────────────────────────────────────────────────
 
 async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
-    start_time = time.time()
     debate_data = state["debate"]
     debate_id   = state["debate_id"]
     round_num   = state["current_round"]
@@ -117,8 +104,7 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
     context     = debate_data["config"].get("context")
 
     config_data = next(
-        (a for a in debate_data["config"]["agents"] if a["role"] == role.value),
-        None,
+        (a for a in debate_data["config"]["agents"] if a["role"] == role.value), None
     )
     if not config_data:
         logger.error(f"No config for {role.value}")
@@ -127,119 +113,94 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
     from models.schemas import AgentConfig
     config = AgentConfig(**config_data)
 
-    # ── Pause check ──────────────────────────────────────────────
+    # ── Pause check ───────────────────────────────────────────────────────────
     if await redis_client.is_paused(debate_id):
         await emit(state, WSEventType.debate_paused, {})
-        logger.info(f"[{role.value}] Paused — waiting for resume")
+        logger.info(f"[{role.value}] Paused")
         for _ in range(600):
             await asyncio.sleep(1)
             if not await redis_client.is_paused(debate_id):
-                logger.info(f"[{role.value}] Resumed")
                 break
 
-    # ── Interrupt check ──────────────────────────────────────────
+    # ── Interrupt check ───────────────────────────────────────────────────────
     interrupt = await redis_client.get_interrupt(debate_id)
     if interrupt:
         await redis_client.clear_interrupt(debate_id)
         await emit(state, WSEventType.debate_interrupted, interrupt)
         state = {**state, "interrupt_data": interrupt}
 
-    # ── Web search (disabled by default) ─────────────────────────
-    tool_calls:  list[ToolCall] = []
-    tool_context = ""
-
-    enable_search = debate_data["config"].get("enable_web_search", False)
-    do_search = (
-        enable_search
-        and round_num == 1
-        and role in (AgentRole.proponent, AgentRole.opponent)
-    )
-
-    if do_search:
-        try:
-            from tools.web_search import web_search
-            q = f"{topic} {'evidence for' if role == AgentRole.proponent else 'evidence against'} 2024 2025"
-            await emit(state, WSEventType.agent_tool_call, {
-                "agentRole": role.value, "tool": "web_search",
-                "input": {"query": q}, "status": "calling",
-            })
-            result = await asyncio.wait_for(web_search(q, max_results=2), timeout=8.0)
-            tc = ToolCall(tool="web_search", input={"query": q}, output=result, status="success")
-            tool_calls.append(tc)
-            if result.get("answer"):
-                tool_context = f"\n\n[WEB SEARCH]\n{result['answer'][:250]}\n"
-            await emit(state, WSEventType.agent_tool_call, {
-                "agentRole": role.value, "tool": "web_search", "status": "success",
-            })
-        except Exception as e:
-            logger.warning(f"[WebSearch] Skipped: {e}")
-
-    # ── Build messages ───────────────────────────────────────────
+    # ── Build messages ────────────────────────────────────────────────────────
     system_prompt = prompts.get_system_prompt(
         config=config, topic=topic, round_num=round_num,
         max_rounds=max_rounds, is_personal=is_personal, context=context,
     )
-    
+
     messages = [{"role": "system", "content": system_prompt}]
 
     transcript = debate_data.get("transcript", [])
     for t in transcript[-6:]:
         r = "assistant" if t["agent_role"] == role.value else "user"
-        messages.append({"role": r, "content": f"[{t['agent_role'].upper()} R{t['round']}]: {t['content'][:400]}"})
+        messages.append({
+            "role":    r,
+            "content": f"[{t['agent_role'].upper()} R{t['round']}]: {t['content'][:400]}"
+        })
 
     if interrupt:
         messages.append({
             "role":    "user",
-            "content": f"⚡ HUMAN INTERRUPT ({interrupt.get('redirect_type','').upper()}):\n{interrupt['message']}\nAddress this directly.",
+            "content": f"HUMAN INTERRUPT: {interrupt['message']}\nAddress this directly.",
         })
 
-    user_msg = "Your turn. Make your argument now."
-    if tool_context:
-        user_msg = f"Research:{tool_context}\n\nNow make your argument using this."
-    messages.append({"role": "user", "content": user_msg})
+    messages.append({
+        "role":    "user",
+        "content": "Your turn. Respond now. Start directly with your argument.",
+    })
 
-    # ── Notify thinking ──────────────────────────────────────────
+    # ── Notify thinking ───────────────────────────────────────────────────────
     await emit(state, WSEventType.agent_thinking, {
         "agentRole":   role.value,
         "thought":     f"{config.name} is preparing...",
         "isStreaming": False,
     })
 
-    # ── Stream response ──────────────────────────────────────────────────────
+    # ── Get response using chat() — clean, no think tags ──────────────────────
+    # We use chat() (non-streaming) instead of chat_stream() because:
+    # 1. chat() buffers the full response and strips <think> tags via _strip_think()
+    # 2. chat_stream() was emitting raw chunks including <think> content to frontend
+    # 3. The "typing effect" is simulated below by emitting chunks from clean content
     full_content = ""
-    await emit(state, WSEventType.agent_speaking, {
-        "agentRole": role.value, "content": "", "isStreaming": True,
-    })
 
     try:
-        async def _stream():
-            nonlocal full_content
-            async for chunk in groq_client.chat_stream(
+        full_content, _ = await asyncio.wait_for(
+            groq_client.chat(
                 messages    = messages,
                 model       = config.model or "qwen/qwen3.6-27b",
                 temperature = config.temperature,
                 max_tokens  = 500,
-            ):
-                full_content += chunk
-                await emit(state, WSEventType.agent_speaking, {
-                    "agentRole": role.value, "content": chunk, "isStreaming": True,
-                })
-
-        await asyncio.wait_for(_stream(), timeout=60.0)
-
+            ),
+            timeout=60.0,
+        )
     except asyncio.TimeoutError:
-        logger.error(f"[{role.value}] Stream timed out after 60s")
-        if not full_content:
-            full_content = f"[{config.name} response timed out]"
+        logger.error(f"[{role.value}] chat() timed out after 60s")
+        full_content = f"[{config.name} response timed out]"
     except Exception as e:
-        logger.error(f"[{role.value}] Stream error: {e}")
-        if not full_content:
-            full_content = f"[{config.name} encountered an error: {str(e)[:80]}]"
+        logger.error(f"[{role.value}] chat() error: {e}")
+        full_content = f"[{config.name} encountered an error]"
 
-    full_content = _re.sub(r'<think>.*?</think>', '', full_content, flags=_re.DOTALL).strip()
-    if not full_content:
-        full_content = f"[{config.name} produced no visible output]"
+    if not full_content.strip():
+        full_content = f"[{config.name} produced no response]"
 
+    # ── Simulate typing effect by streaming clean content in chunks ───────────
+    chunk_size = 20
+    for i in range(0, len(full_content), chunk_size):
+        await emit(state, WSEventType.agent_speaking, {
+            "agentRole": role.value,
+            "content":   full_content[i:i + chunk_size],
+            "isStreaming": True,
+        })
+        await asyncio.sleep(0.02)  # small delay for typing effect
+
+    # ── Score + fallacies ─────────────────────────────────────────────────────
     try:
         if _should_check_fallacies(role, round_num):
             results = await asyncio.gather(
@@ -247,22 +208,22 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
                 detect_fallacies(full_content),
                 return_exceptions=True,
             )
-            agent_score = results[0] if not isinstance(results[0], Exception) else AgentScore(logic_score=50, evidence_score=50, total_score=50)
+            agent_score = results[0] if not isinstance(results[0], Exception) else AgentScore(logic_score=65, evidence_score=65, total_score=65)
             fallacies   = results[1] if not isinstance(results[1], Exception) else []
         else:
             agent_score = await score_turn(full_content, role, round_num)
             fallacies   = []
 
         if isinstance(agent_score, Exception):
-            agent_score = AgentScore(logic_score=50, evidence_score=50, total_score=50)
+            agent_score = AgentScore(logic_score=65, evidence_score=65, total_score=65)
 
         agent_score.fallacies_detected = fallacies
         agent_score.total_score = round((agent_score.logic_score + agent_score.evidence_score) / 2, 1)
 
     except Exception:
-        agent_score = AgentScore(logic_score=50, evidence_score=50, total_score=50)
+        agent_score = AgentScore(logic_score=65, evidence_score=65, total_score=65)
 
-    # ── Embedding (best-effort, only pro/opp) ────────────────────
+    # ── Embedding (best-effort) ───────────────────────────────────────────────
     embedding: list[float] | None = None
     if role in (AgentRole.proponent, AgentRole.opponent):
         try:
@@ -277,68 +238,53 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
         except Exception:
             embedding = None
 
-    # ── Build turn ───────────────────────────────────────────────
+    # ── Build turn ────────────────────────────────────────────────────────────
     turn = DebateTurn(
         debate_id    = debate_id,
         round        = round_num,
         agent_role   = role,
         agent_name   = config.name,
         content      = full_content,
-        tool_calls   = tool_calls,
+        tool_calls   = [],
         score        = agent_score,
         embedding    = embedding,
         is_interrupt = bool(interrupt),
     )
 
-    # Save to DB
     try:
         await supabase_client.save_turn(turn)
     except Exception as e:
         logger.error(f"[DB] save_turn failed: {e}")
 
-    # Update internal state (snake_case)
+    # Update transcript
     debate_data["transcript"] = debate_data.get("transcript", []) + [turn.model_dump(mode="json")]
 
-    # Update agent score so frontend live metrics work
+    # Update agent score
     if "agents" in debate_data and role.value in debate_data["agents"]:
         debate_data["agents"][role.value]["score"] = agent_score.model_dump(mode="json")
         debate_data["agents"][role.value]["turnCount"] = (
             debate_data["agents"][role.value].get("turnCount", 0) + 1
         )
-    end_time = time.time()
-    duration = round(end_time - start_time, 2)
-    logger.info(f"[METRICS] {role.value} | round={round_num} | duration={duration}s | tokens={len(full_content.split())}")
-    # Broadcast turn_complete with camelCase payload
+
+    # Emit turn_complete
     await emit(state, WSEventType.turn_complete, turn_to_ws(turn))
 
     return {**state, "debate": debate_data}
 
 
-# ── Agent nodes ────────────────────────────────────────────────
+# ── Agent nodes ───────────────────────────────────────────────────────────────
 
-async def proponent_node(state: DebateState) -> dict:
-    return await run_agent_turn(state, AgentRole.proponent)
-
-async def opponent_node(state: DebateState) -> dict:
-    return await run_agent_turn(state, AgentRole.opponent)
-
-async def fact_checker_node(state: DebateState) -> dict:
-    return await run_agent_turn(state, AgentRole.fact_checker)
-
-async def moderator_node(state: DebateState) -> dict:
-    return await run_agent_turn(state, AgentRole.moderator)
+async def proponent_node(state: DebateState)    -> dict: return await run_agent_turn(state, AgentRole.proponent)
+async def opponent_node(state: DebateState)     -> dict: return await run_agent_turn(state, AgentRole.opponent)
+async def fact_checker_node(state: DebateState) -> dict: return await run_agent_turn(state, AgentRole.fact_checker)
+async def moderator_node(state: DebateState)    -> dict: return await run_agent_turn(state, AgentRole.moderator)
 
 
-# ── Round start ────────────────────────────────────────────────
+# ── Round start ───────────────────────────────────────────────────────────────
 
 async def round_start_node(state: DebateState) -> dict:
     new_round = state["current_round"] + 1
-    logger.info(f"[Graph] ── Round {new_round} starting ──")
-    logger.info(f"[METRICS] ROUND_START | debate={state['debate_id']} | round={new_round} | ts={time.time()}")
-async def round_start_node(state: DebateState) -> dict:
-    new_round = state["current_round"] + 1
-    logger.info(f"[Graph] ── Round {new_round} starting ──")
-    logger.info(f"[METRICS] ROUND_START | debate={state['debate_id']} | round={new_round} | ts={time.time()}")
+    logger.info(f"[Graph] Round {new_round} starting")
 
     try:
         await supabase_client.update_debate_status(
@@ -352,11 +298,8 @@ async def round_start_node(state: DebateState) -> dict:
     await emit(state, WSEventType.round_started, {"round": new_round})
     return {**state, "current_round": new_round}
 
-    await emit(state, WSEventType.round_started, {"round": new_round})
-    return {**state, "current_round": new_round}
 
-
-# ── Consensus check ────────────────────────────────────────────
+# ── Consensus ─────────────────────────────────────────────────────────────────
 
 async def consensus_node(state: DebateState) -> dict:
     debate_data = state["debate"]
@@ -365,7 +308,7 @@ async def consensus_node(state: DebateState) -> dict:
     max_rounds  = debate_data["config"]["max_rounds"]
     prev_score  = state.get("consensus_score", 0.0)
     score       = prev_score
-    logger.info(f"[METRICS] ROUND_END | debate={state['debate_id']} | round={round_num} | ts={time.time()}")
+
     pro = state.get("last_pro_stance", "")
     opp = state.get("last_opp_stance", "")
     if pro and opp:
@@ -414,7 +357,7 @@ async def consensus_node(state: DebateState) -> dict:
     return {**state, "consensus_score": score, "should_end": should_end, "debate": debate_data}
 
 
-# ── Judge ──────────────────────────────────────────────────────
+# ── Judge ─────────────────────────────────────────────────────────────────────
 
 async def judge_node(state: DebateState) -> dict:
     debate_data = state["debate"]
@@ -431,11 +374,11 @@ async def judge_node(state: DebateState) -> dict:
         if r not in scores:
             scores[r] = {"logic": [], "evidence": [], "fallacies": 0}
         s = t.get("score", {})
-        scores[r]["logic"].append(s.get("logic_score", 50))
-        scores[r]["evidence"].append(s.get("evidence_score", 50))
+        scores[r]["logic"].append(s.get("logic_score", 65))
+        scores[r]["evidence"].append(s.get("evidence_score", 65))
         scores[r]["fallacies"] += len(s.get("fallacies_detected", []))
 
-    def avg(lst): return round(sum(lst) / len(lst), 1) if lst else 50
+    def avg(lst): return round(sum(lst) / len(lst), 1) if lst else 65
 
     scores_str = "\n".join(
         f"{r}: logic={avg(v['logic'])} evidence={avg(v['evidence'])} fallacies={v['fallacies']}"
@@ -453,7 +396,7 @@ async def judge_node(state: DebateState) -> dict:
                 rounds             = state["current_round"],
                 duration_sec       = 0,
             )}],
-            model       = "openai/gpt-oss-120b",
+            model       = "qwen/qwen3.6-27b",
             temperature = 0.3,
             max_tokens  = 900,
         )
@@ -490,13 +433,13 @@ async def judge_node(state: DebateState) -> dict:
     return {**state, "debate": debate_data}
 
 
-# ── Routing ────────────────────────────────────────────────────
+# ── Routing ───────────────────────────────────────────────────────────────────
 
 def should_continue(state: DebateState) -> str:
     return "end" if state.get("should_end") else "continue"
 
 
-# ── Build graph ────────────────────────────────────────────────
+# ── Build graph ───────────────────────────────────────────────────────────────
 
 def build_debate_graph():
     g = StateGraph(DebateState)
