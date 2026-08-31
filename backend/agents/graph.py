@@ -176,7 +176,7 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
                 messages    = messages,
                 model       = config.model or "qwen/qwen3.6-27b",
                 temperature = config.temperature,
-                max_tokens  = 500,
+                max_tokens  = 1200,
             ),
             timeout=60.0,
         )
@@ -398,7 +398,7 @@ async def judge_node(state: DebateState) -> dict:
             )}],
             model       = "qwen/qwen3.6-27b",
             temperature = 0.3,
-            max_tokens  = 900,
+            max_tokens  = 1500,
         )
         clean        = raw.strip().removeprefix("```json").removesuffix("```").strip()
         verdict_data = json.loads(clean)

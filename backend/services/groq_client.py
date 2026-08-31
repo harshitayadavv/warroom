@@ -48,6 +48,29 @@ def _strip_think(text: str) -> str:
     return cleaned
 
 
+def _reasoning_kwargs(model: str) -> dict:
+    """
+    Reasoning models (qwen3.x, gpt-oss, qwq, deepseek-r1) will otherwise dump
+    their <think>...</think> chain into message.content and can burn the
+    entire max_tokens budget before writing the actual answer.
+    This tells Groq to keep reasoning out of content at the API level,
+    instead of us trying to regex-strip it after the fact.
+    """
+    m = model.lower()
+    if "qwen3" in m or "qwq" in m:
+        # qwen3 family: reasoning_effort "none" = skip thinking entirely
+        # (best fit for short, structured debate turns), reasoning_format
+        # "hidden" as a belt-and-braces safety net.
+        return {"reasoning_effort": "none", "reasoning_format": "hidden"}
+    if "gpt-oss" in m:
+        # gpt-oss can't disable reasoning and doesn't support reasoning_format,
+        # but its reasoning goes into a separate `reasoning` field by default,
+        # not into content — so no stripping needed. Keep effort low so it
+        # doesn't eat the completion budget.
+        return {"reasoning_effort": "low"}
+    return {}
+
+
 async def chat(
     messages:    list[dict],
     model:       str   = DEFAULT_MODEL,
@@ -62,6 +85,7 @@ async def chat(
         temperature = temperature,
         max_tokens  = max_tokens,
         stop        = stop,
+        **_reasoning_kwargs(model),
     )
     latency_ms = int((time.time() - start) * 1000)
     raw        = response.choices[0].message.content or ""
@@ -89,6 +113,7 @@ async def chat_stream(
         temperature = temperature,
         max_tokens  = max_tokens,
         stream      = True,
+        **_reasoning_kwargs(model),
     )
 
     full = ""
