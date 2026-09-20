@@ -1,13 +1,17 @@
 # LOCATION: backend/services/groq_client.py
+# Switched from Groq to Google Gemini API
+# - No model deprecations
+# - No <think> tags
+# - Free tier: 15 RPM, 1M tokens/day on gemini-1.5-flash
+# - Excellent debate quality
 
 from __future__ import annotations
-import os, re, time, logging
+import os, time, logging
 from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
-_client = None
 
-DEFAULT_MODEL = "qwen/qwen3.6-27b"
+DEFAULT_MODEL = "gemini-1.5-flash"
 
 AGENT_MODELS = {
     "proponent":    DEFAULT_MODEL,
@@ -17,58 +21,39 @@ AGENT_MODELS = {
     "judge":        DEFAULT_MODEL,
 }
 
+_genai = None
 
 def get_client():
-    global _client
-    if _client is None:
-        from groq import AsyncGroq
-        key = os.environ.get("GROQ_API_KEY", "")
+    global _genai
+    if _genai is None:
+        import google.generativeai as genai
+        key = os.environ.get("GEMINI_API_KEY", "")
         if not key:
-            raise RuntimeError("GROQ_API_KEY not set")
-        _client = AsyncGroq(api_key=key)
-    return _client
+            raise RuntimeError("GEMINI_API_KEY not set in environment")
+        genai.configure(api_key=key)
+        _genai = genai
+    return _genai
 
 
-def _strip_think(text: str) -> str:
-    # Handle both closed <think>...</think> and unclosed <think>... 
-    # Remove closed think blocks first
-    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-    # Remove any remaining unclosed <think> block (everything after <think>)
-    cleaned = re.sub(r'<think>.*', '', cleaned, flags=re.DOTALL).strip()
-    # If nothing left, extract content after </think> as fallback
-    if not cleaned:
-        after_close = text.split('</think>')
-        if len(after_close) > 1:
-            cleaned = after_close[-1].strip()
-    if not cleaned:
-        # Last resort: strip everything up to and including last </think>
-        parts = text.rsplit('</think>', 1)
-        if len(parts) > 1:
-            cleaned = parts[1].strip()
-    return cleaned
-
-
-def _reasoning_kwargs(model: str) -> dict:
+def _messages_to_gemini(messages: list[dict]) -> tuple[str, list[dict]]:
+    """Convert OpenAI-format messages to Gemini format.
+    Returns (system_instruction, gemini_history)
     """
-    Reasoning models (qwen3.x, gpt-oss, qwq, deepseek-r1) will otherwise dump
-    their <think>...</think> chain into message.content and can burn the
-    entire max_tokens budget before writing the actual answer.
-    This tells Groq to keep reasoning out of content at the API level,
-    instead of us trying to regex-strip it after the fact.
-    """
-    m = model.lower()
-    if "qwen3" in m or "qwq" in m:
-        # qwen3 family: reasoning_effort "none" = skip thinking entirely
-        # (best fit for short, structured debate turns), reasoning_format
-        # "hidden" as a belt-and-braces safety net.
-        return {"reasoning_effort": "none", "reasoning_format": "hidden"}
-    if "gpt-oss" in m:
-        # gpt-oss can't disable reasoning and doesn't support reasoning_format,
-        # but its reasoning goes into a separate `reasoning` field by default,
-        # not into content — so no stripping needed. Keep effort low so it
-        # doesn't eat the completion budget.
-        return {"reasoning_effort": "low"}
-    return {}
+    system_instruction = ""
+    history = []
+
+    for msg in messages:
+        role    = msg["role"]
+        content = msg["content"]
+
+        if role == "system":
+            system_instruction = content
+        elif role == "user":
+            history.append({"role": "user", "parts": [content]})
+        elif role == "assistant":
+            history.append({"role": "model", "parts": [content]})
+
+    return system_instruction, history
 
 
 async def chat(
@@ -78,25 +63,53 @@ async def chat(
     max_tokens:  int   = 1024,
     stop:        list[str] | None = None,
 ) -> tuple[str, dict]:
-    start    = time.time()
-    response = await get_client().chat.completions.create(
-        model       = model,
-        messages    = messages,
-        temperature = temperature,
-        max_tokens  = max_tokens,
-        stop        = stop,
-        **_reasoning_kwargs(model),
+    import asyncio
+    import google.generativeai as genai
+
+    get_client()  # ensure configured
+
+    start = time.time()
+
+    system_instruction, history = _messages_to_gemini(messages)
+
+    generation_config = genai.GenerationConfig(
+        temperature      = temperature,
+        max_output_tokens= max_tokens,
     )
+
+    gmodel = genai.GenerativeModel(
+        model_name            = model,
+        system_instruction    = system_instruction or None,
+        generation_config     = generation_config,
+    )
+
+    # Run in executor since Gemini SDK is sync
+    def _call():
+        if len(history) == 0:
+            return gmodel.generate_content("Hello")
+        # Last message is the user prompt
+        last = history[-1]["parts"][0]
+        chat_history = history[:-1]
+        if chat_history:
+            session  = gmodel.start_chat(history=chat_history)
+            response = session.send_message(last)
+        else:
+            response = gmodel.generate_content(last)
+        return response
+
+    loop     = asyncio.get_event_loop()
+    response = await loop.run_in_executor(None, _call)
+
     latency_ms = int((time.time() - start) * 1000)
-    raw        = response.choices[0].message.content or ""
-    content    = _strip_think(raw)
-    usage      = {
-        "prompt_tokens":     response.usage.prompt_tokens,
-        "completion_tokens": response.usage.completion_tokens,
-        "total_tokens":      response.usage.total_tokens,
+    content    = response.text or ""
+
+    usage = {
+        "prompt_tokens":     getattr(response.usage_metadata, "prompt_token_count",     0),
+        "completion_tokens": getattr(response.usage_metadata, "candidates_token_count", 0),
+        "total_tokens":      getattr(response.usage_metadata, "total_token_count",      0),
         "latency_ms":        latency_ms,
     }
-    logger.info(f"[Groq] {model} | {usage['total_tokens']} tok | {latency_ms}ms")
+    logger.info(f"[Gemini] {model} | {usage['total_tokens']} tok | {latency_ms}ms")
     return content, usage
 
 
@@ -106,30 +119,21 @@ async def chat_stream(
     temperature: float = 0.7,
     max_tokens:  int   = 1024,
 ) -> AsyncGenerator[str, None]:
-    # Collect full response first, strip think tags, then re-yield in chunks
-    stream = await get_client().chat.completions.create(
-        model       = model,
+    """Get full response from Gemini, yield in chunks for typing effect."""
+    content, _ = await chat(
         messages    = messages,
+        model       = model,
         temperature = temperature,
         max_tokens  = max_tokens,
-        stream      = True,
-        **_reasoning_kwargs(model),
     )
 
-    full = ""
-    async for chunk in stream:
-        delta = chunk.choices[0].delta.content
-        if delta:
-            full += delta
+    if not content:
+        content = "[Agent produced no response]"
 
-    clean = _strip_think(full)
-    if not clean:
-        clean = "[Agent produced no response]"
-
-    # Re-yield in 15-char chunks for typing effect
-    chunk_size = 15
-    for i in range(0, len(clean), chunk_size):
-        yield clean[i:i + chunk_size]
+    # Yield in chunks to simulate typing effect
+    chunk_size = 20
+    for i in range(0, len(content), chunk_size):
+        yield content[i:i + chunk_size]
 
 
 async def embed_text(text: str) -> list[float]:
@@ -144,4 +148,3 @@ async def embed_text(text: str) -> list[float]:
         )
     except ImportError:
         return [0.0] * 384
-# v2-buffer-strip
