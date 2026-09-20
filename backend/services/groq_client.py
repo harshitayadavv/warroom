@@ -1,17 +1,13 @@
 # LOCATION: backend/services/groq_client.py
-# Switched from Groq to Google Gemini API
-# - No model deprecations
-# - No <think> tags
-# - Free tier: 15 RPM, 1M tokens/day on gemini-1.5-flash
-# - Excellent debate quality
+# Uses google-genai (new SDK) instead of deprecated google-generativeai
 
 from __future__ import annotations
-import os, time, logging
+import os, time, logging, asyncio
 from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-1.5-flash"
+DEFAULT_MODEL = "gemini-2.0-flash"
 
 AGENT_MODELS = {
     "proponent":    DEFAULT_MODEL,
@@ -21,39 +17,45 @@ AGENT_MODELS = {
     "judge":        DEFAULT_MODEL,
 }
 
-_genai = None
+_client = None
 
 def get_client():
-    global _genai
-    if _genai is None:
-        import google.generativeai as genai
+    global _client
+    if _client is None:
+        from google import genai
         key = os.environ.get("GEMINI_API_KEY", "")
         if not key:
             raise RuntimeError("GEMINI_API_KEY not set in environment")
-        genai.configure(api_key=key)
-        _genai = genai
-    return _genai
+        _client = genai.Client(api_key=key)
+    return _client
 
 
-def _messages_to_gemini(messages: list[dict]) -> tuple[str, list[dict]]:
-    """Convert OpenAI-format messages to Gemini format.
-    Returns (system_instruction, gemini_history)
+def _build_contents(messages: list[dict]) -> tuple[str, list]:
+    """Convert OpenAI-format messages to google-genai format.
+    Returns (system_instruction, contents_list)
     """
+    from google.genai import types
+
     system_instruction = ""
-    history = []
+    contents = []
 
     for msg in messages:
         role    = msg["role"]
         content = msg["content"]
-
         if role == "system":
             system_instruction = content
         elif role == "user":
-            history.append({"role": "user", "parts": [content]})
+            contents.append(types.Content(
+                role  = "user",
+                parts = [types.Part(text=content)],
+            ))
         elif role == "assistant":
-            history.append({"role": "model", "parts": [content]})
+            contents.append(types.Content(
+                role  = "model",
+                parts = [types.Part(text=content)],
+            ))
 
-    return system_instruction, history
+    return system_instruction, contents
 
 
 async def chat(
@@ -63,38 +65,25 @@ async def chat(
     max_tokens:  int   = 1024,
     stop:        list[str] | None = None,
 ) -> tuple[str, dict]:
-    import asyncio
-    import google.generativeai as genai
+    from google.genai import types
 
-    get_client()  # ensure configured
+    client = get_client()
+    start  = time.time()
 
-    start = time.time()
+    system_instruction, contents = _build_contents(messages)
 
-    system_instruction, history = _messages_to_gemini(messages)
-
-    generation_config = genai.GenerationConfig(
-        temperature      = temperature,
-        max_output_tokens= max_tokens,
+    config = types.GenerateContentConfig(
+        temperature       = temperature,
+        max_output_tokens = max_tokens,
+        system_instruction= system_instruction or None,
     )
 
-    gmodel = genai.GenerativeModel(
-        model_name            = model,
-        system_instruction    = system_instruction or None,
-        generation_config     = generation_config,
-    )
-
-    # Run in executor since Gemini SDK is sync
     def _call():
-        if len(history) == 0:
-            return gmodel.generate_content("Hello")
-        # Last message is the user prompt
-        last = history[-1]["parts"][0]
-        chat_history = history[:-1]
-        if chat_history:
-            session  = gmodel.start_chat(history=chat_history)
-            response = session.send_message(last)
-        else:
-            response = gmodel.generate_content(last)
+        response = client.models.generate_content(
+            model    = model,
+            contents = contents,
+            config   = config,
+        )
         return response
 
     loop     = asyncio.get_event_loop()
@@ -104,9 +93,9 @@ async def chat(
     content    = response.text or ""
 
     usage = {
-        "prompt_tokens":     getattr(response.usage_metadata, "prompt_token_count",     0),
-        "completion_tokens": getattr(response.usage_metadata, "candidates_token_count", 0),
-        "total_tokens":      getattr(response.usage_metadata, "total_token_count",      0),
+        "prompt_tokens":     getattr(response.usage_metadata, "prompt_token_count",      0),
+        "completion_tokens": getattr(response.usage_metadata, "candidates_token_count",  0),
+        "total_tokens":      getattr(response.usage_metadata, "total_token_count",       0),
         "latency_ms":        latency_ms,
     }
     logger.info(f"[Gemini] {model} | {usage['total_tokens']} tok | {latency_ms}ms")
@@ -119,7 +108,7 @@ async def chat_stream(
     temperature: float = 0.7,
     max_tokens:  int   = 1024,
 ) -> AsyncGenerator[str, None]:
-    """Get full response from Gemini, yield in chunks for typing effect."""
+    """Get full response, yield in chunks for typing effect."""
     content, _ = await chat(
         messages    = messages,
         model       = model,
@@ -130,7 +119,6 @@ async def chat_stream(
     if not content:
         content = "[Agent produced no response]"
 
-    # Yield in chunks to simulate typing effect
     chunk_size = 20
     for i in range(0, len(content), chunk_size):
         yield content[i:i + chunk_size]
@@ -139,7 +127,7 @@ async def chat_stream(
 async def embed_text(text: str) -> list[float]:
     try:
         from sentence_transformers import SentenceTransformer
-        import asyncio, functools
+        import functools
         if not hasattr(embed_text, "_model"):
             embed_text._model = SentenceTransformer("all-MiniLM-L6-v2")
         loop = asyncio.get_event_loop()

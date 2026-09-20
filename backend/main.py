@@ -24,12 +24,12 @@ async def lifespan(app: FastAPI):
         from services.groq_client import chat
         _, usage = await chat(
             messages=[{"role": "user", "content": "ping"}],
-            model="openai/gpt-oss-20b",
+            model="gemini-2.0-flash",
             max_tokens=5,
         )
-        logger.info(f"✅ Groq connected — {usage['latency_ms']}ms")
+        logger.info(f"✅ Gemini connected — {usage['latency_ms']}ms")
     except Exception as e:
-        logger.error(f"❌ Groq connection failed: {e}")
+        logger.error(f"❌ Gemini connection failed: {e}")
 
     # Test Redis
     try:
