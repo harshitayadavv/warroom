@@ -174,7 +174,7 @@ async def run_agent_turn(state: DebateState, role: AgentRole) -> dict:
         full_content, _ = await asyncio.wait_for(
             groq_client.chat(
                 messages    = messages,
-                model       = config.model or "gemini-2.5-flash",
+                model       = config.model or "gemini-3.6-flash",
                 temperature = config.temperature,
                 max_tokens  = 1200,
             ),
@@ -396,7 +396,7 @@ async def judge_node(state: DebateState) -> dict:
                 rounds             = state["current_round"],
                 duration_sec       = 0,
             )}],
-            model       = "gemini-2.5-flash",
+            model       = "gemini-3.6-flash",
             temperature = 0.3,
             max_tokens  = 1500,
         )
