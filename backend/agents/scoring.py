@@ -6,7 +6,7 @@ from services.groq_client import chat, DEFAULT_MODEL
 
 logger = logging.getLogger(__name__)
 
-SCORING_MODEL = "gemini-3.6-flash"
+SCORING_MODEL = "gemini-2.5-flash-lite"
 
 
 def _extract_json(text: str) -> str:
