@@ -1,5 +1,4 @@
 # LOCATION: backend/services/groq_client.py
-# Uses google-genai (new SDK) instead of deprecated google-generativeai
 
 from __future__ import annotations
 import os, time, logging, asyncio
@@ -7,7 +6,7 @@ from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_MODEL = "gemini-2.0-flash-lite"
 
 AGENT_MODELS = {
     "proponent":    DEFAULT_MODEL,
@@ -17,45 +16,16 @@ AGENT_MODELS = {
     "judge":        DEFAULT_MODEL,
 }
 
-_client = None
+_api_key: str | None = None
 
-def get_client():
-    global _client
-    if _client is None:
-        from google import genai
-        key = os.environ.get("GEMINI_API_KEY", "")
-        if not key:
+
+def get_api_key() -> str:
+    global _api_key
+    if _api_key is None:
+        _api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not _api_key:
             raise RuntimeError("GEMINI_API_KEY not set in environment")
-        _client = genai.Client(api_key=key)
-    return _client
-
-
-def _build_contents(messages: list[dict]) -> tuple[str, list]:
-    """Convert OpenAI-format messages to google-genai format.
-    Returns (system_instruction, contents_list)
-    """
-    from google.genai import types
-
-    system_instruction = ""
-    contents = []
-
-    for msg in messages:
-        role    = msg["role"]
-        content = msg["content"]
-        if role == "system":
-            system_instruction = content
-        elif role == "user":
-            contents.append(types.Content(
-                role  = "user",
-                parts = [types.Part(text=content)],
-            ))
-        elif role == "assistant":
-            contents.append(types.Content(
-                role  = "model",
-                parts = [types.Part(text=content)],
-            ))
-
-    return system_instruction, contents
+    return _api_key
 
 
 async def chat(
@@ -65,37 +35,56 @@ async def chat(
     max_tokens:  int   = 1024,
     stop:        list[str] | None = None,
 ) -> tuple[str, dict]:
-    from google.genai import types
+    """Call Gemini via simple HTTP request — no SDK needed."""
+    import httpx
 
-    client = get_client()
-    start  = time.time()
+    api_key = get_api_key()
+    start   = time.time()
 
-    system_instruction, contents = _build_contents(messages)
+    # Build prompt from messages
+    system_parts = [m["content"] for m in messages if m["role"] == "system"]
+    user_parts   = [m["content"] for m in messages if m["role"] != "system"]
 
-    config = types.GenerateContentConfig(
-        temperature       = temperature,
-        max_output_tokens = max_tokens,
-        system_instruction= system_instruction or None,
-    )
+    system_text = "\n\n".join(system_parts)
+    user_text   = "\n\n".join(user_parts)
+
+    # Combine system + user into single prompt for simplicity
+    full_prompt = f"{system_text}\n\n{user_text}".strip() if system_text else user_text
+
+    payload = {
+        "contents": [
+            {"role": "user", "parts": [{"text": full_prompt}]}
+        ],
+        "generationConfig": {
+            "temperature":     temperature,
+            "maxOutputTokens": max_tokens,
+        }
+    }
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
     def _call():
-        response = client.models.generate_content(
-            model    = model,
-            contents = contents,
-            config   = config,
-        )
-        return response
+        with httpx.Client(timeout=60.0) as client:
+            resp = client.post(url, json=payload)
+            resp.raise_for_status()
+            return resp.json()
 
-    loop     = asyncio.get_event_loop()
-    response = await loop.run_in_executor(None, _call)
+    loop   = asyncio.get_event_loop()
+    data   = await loop.run_in_executor(None, _call)
 
     latency_ms = int((time.time() - start) * 1000)
-    content    = response.text or ""
 
+    try:
+        content = data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError):
+        content = ""
+        logger.warning(f"[Gemini] Unexpected response: {data}")
+
+    usage_meta = data.get("usageMetadata", {})
     usage = {
-        "prompt_tokens":     getattr(response.usage_metadata, "prompt_token_count",      0),
-        "completion_tokens": getattr(response.usage_metadata, "candidates_token_count",  0),
-        "total_tokens":      getattr(response.usage_metadata, "total_token_count",       0),
+        "prompt_tokens":     usage_meta.get("promptTokenCount",     0),
+        "completion_tokens": usage_meta.get("candidatesTokenCount", 0),
+        "total_tokens":      usage_meta.get("totalTokenCount",      0),
         "latency_ms":        latency_ms,
     }
     logger.info(f"[Gemini] {model} | {usage['total_tokens']} tok | {latency_ms}ms")
@@ -108,7 +97,7 @@ async def chat_stream(
     temperature: float = 0.7,
     max_tokens:  int   = 1024,
 ) -> AsyncGenerator[str, None]:
-    """Get full response, yield in chunks for typing effect."""
+    """Get full response then yield in chunks for typing effect."""
     content, _ = await chat(
         messages    = messages,
         model       = model,
