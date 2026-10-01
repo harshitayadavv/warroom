@@ -116,7 +116,7 @@ async def run(
         messages=messages,
         model=config.model or AGENT_MODELS["fact_checker"],
         temperature=min(config.temperature, 0.3),  # fact-checker stays cold
-        max_tokens=500,
+        max_tokens=1200,
     ):
         full_content += chunk
         if emit:

@@ -51,7 +51,7 @@ async def run(
         messages=messages,
         model=config.model or AGENT_MODELS["moderator"],
         temperature=min(config.temperature, 0.4),
-        max_tokens=400,
+        max_tokens=1200,
     )
 
     if emit:
@@ -120,7 +120,7 @@ async def deliver_verdict(
         messages=messages,
         model=AGENT_MODELS["judge"],
         temperature=0.3,
-        max_tokens=900,
+        max_tokens=1200,
     )
 
     try:

@@ -78,7 +78,7 @@ async def run(
         messages=messages,
         model=config.model or AGENT_MODELS["proponent"],
         temperature=config.temperature,
-        max_tokens=600,
+        max_tokens=1200,
     ):
         full_content += chunk
         if emit:
