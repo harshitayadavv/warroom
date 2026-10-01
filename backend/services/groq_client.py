@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-2.0-flash-lite"
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 AGENT_MODELS = {
     "proponent":    DEFAULT_MODEL,
