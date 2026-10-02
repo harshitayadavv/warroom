@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
         from services.groq_client import chat
         _, usage = await chat(
             messages=[{"role": "user", "content": "ping"}],
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             max_tokens=5,
         )
         logger.info(f"✅ Gemini connected — {usage['latency_ms']}ms")
