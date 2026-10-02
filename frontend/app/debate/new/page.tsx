@@ -12,7 +12,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'proponent-1',
     role: 'proponent' as AgentRole,
     name: 'AXIOM',
-    model: 'qwen/qwen3.6-27b',
+    model: 'gemini-2.5-flash',
     temperature: 0.7,
     expertiseLevel: 4,
     temperament: 'analytical',
@@ -21,7 +21,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'opponent-1',
     role: 'opponent' as AgentRole,
     name: 'REFUTE',
-    model: 'qwen/qwen3.6-27b',
+    model: 'gemini-2.5-flash',
     temperature: 0.8,
     expertiseLevel: 4,
     temperament: 'aggressive',
@@ -30,7 +30,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'fact_checker-1',
     role: 'fact_checker' as AgentRole,
     name: 'VERITAS',
-    model: 'qwen/qwen3.6-27b',
+    model: 'gemini-2.5-flash',
     temperature: 0.2,
     expertiseLevel: 5,
     temperament: 'balanced',
@@ -39,7 +39,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'moderator-1',
     role: 'moderator' as AgentRole,
     name: 'ARBITER',
-    model: 'qwen/qwen3.6-27b',
+    model: 'gemini-2.5-flash',
     temperature: 0.3,
     expertiseLevel: 5,
     temperament: 'diplomatic',
@@ -47,7 +47,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
 ]
 
 const GROQ_MODELS = [
-  { value: 'qwen/qwen3.6-27b',    label: 'Qwen 3.6 27B (recommended)', speed: 'fast',  quality: 'best' },
+  { value: 'gemini-2.5-flash',    label: 'Qwen 3.6 27B (recommended)', speed: 'fast',  quality: 'best' },
   { value: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B',               speed: 'fast',  quality: 'high' },
   { value: 'openai/gpt-oss-20b',  label: 'GPT-OSS 20B (fast)',          speed: 'ultra', quality: 'med'  },
 ]

@@ -32,10 +32,10 @@ export const DEBATE_MODES = [
 ] as const
 
 export const DEFAULT_AGENTS = [
-  { role: 'proponent',    name: 'AXIOM',   model: 'qwen/qwen3.6-27b', temperature: 0.8, expertiseLevel: 4, temperament: 'aggressive' },
-  { role: 'opponent',     name: 'REFUTE',  model: 'qwen/qwen3.6-27b', temperature: 0.8, expertiseLevel: 4, temperament: 'aggressive' },
-  { role: 'fact_checker', name: 'VERITAS', model: 'qwen/qwen3.6-27b', temperature: 0.3, expertiseLevel: 5, temperament: 'analytical' },
-  { role: 'moderator',    name: 'ARBITER', model: 'qwen/qwen3.6-27b', temperature: 0.4, expertiseLevel: 5, temperament: 'diplomatic' },
+  { role: 'proponent',    name: 'AXIOM',   model: 'gemini-2.5-flash', temperature: 0.8, expertiseLevel: 4, temperament: 'aggressive' },
+  { role: 'opponent',     name: 'REFUTE',  model: 'gemini-2.5-flash', temperature: 0.8, expertiseLevel: 4, temperament: 'aggressive' },
+  { role: 'fact_checker', name: 'VERITAS', model: 'gemini-2.5-flash', temperature: 0.3, expertiseLevel: 5, temperament: 'analytical' },
+  { role: 'moderator',    name: 'ARBITER', model: 'gemini-2.5-flash', temperature: 0.4, expertiseLevel: 5, temperament: 'diplomatic' },
 ] as const
 
 export const MAX_ROUNDS_OPTIONS = [1, 2, 3, 5, 7, 10]
